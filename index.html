@@ -652,11 +652,14 @@ var MODEL_CHAIN = [
 var GEMINI_TIMEOUT_MS = 25000;
 function apiBase(){ return "https://generativelanguage.googleapis.com"; }
 
-/* Erros que significam "esse modelo específico não serve agora, tenta o
-   próximo" — ao contrário de erros de autenticação (chave inválida), que
-   valem para qualquer modelo e não adianta trocar. */
-function isFallbackWorthyStatus(status){
-  return status===404 || status===403 || status===429 || status===500 || status===503;
+/* Erros de autenticação (chave inválida/sem permissão) valem para
+   qualquer modelo — não adianta trocar. Todo o resto (modelo
+   descontinuado, não encontrado, sem cota, sobrecarregado, resposta
+   vazia, timeout etc.) vale a pena tentar no próximo modelo da cadeia. */
+function isAuthError(status, message){
+  if(status===401) return true;
+  var msg = (message||"").toLowerCase();
+  return /api key not valid|api_key_invalid|permission_denied.*key|chave.*inv[aá]lida/.test(msg);
 }
 
 async function callGeminiOnce(model, systemText, userText, opts){
@@ -692,7 +695,7 @@ async function callGeminiOnce(model, systemText, userText, opts){
   var data = await res.json();
   var cand = data && data.candidates && data.candidates[0];
   var bloqueado = cand && cand.finishReason==="SAFETY";
-  if(bloqueado) throw Object.assign(new Error("resposta bloqueada por segurança"), {status:200, noFallback:true});
+  if(bloqueado) throw Object.assign(new Error("resposta bloqueada por segurança"), {status:200});
   var text = cand && cand.content && cand.content.parts && cand.content.parts.map(function(p){return p.text||"";}).join("") || "";
   if(!text.trim()){ var vazioErr = new Error("resposta vazia"); vazioErr.status = 200; throw vazioErr; }
   return text.trim();
@@ -719,9 +722,9 @@ async function callGemini(systemText, userText, opts){
       return texto;
     }catch(e){
       falhas.push(model+": "+(e.message||e));
-      var podeTentarProximo = !e.noFallback && (e.status===0 || isFallbackWorthyStatus(e.status));
+      var podeTentarProximo = !e.noFallback && !isAuthError(e.status, e.message);
       if(!podeTentarProximo){
-        throw new Error("Gemini ("+model+"): "+(e.message||e));
+        throw new Error("Gemini ("+model+"): "+(e.message||e)+(falhas.length>1?" [antes: "+falhas.slice(0,-1).join(" | ")+"]":""));
       }
       // senão, segue o loop e tenta o próximo modelo da cadeia
     }
