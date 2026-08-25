@@ -735,10 +735,16 @@ async function callGemini(systemText, userText, opts){
 /* =========================================================
    SESSÃO / AUTENTICAÇÃO
    ========================================================= */
-var session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0] };
+var ADMIN_EMAILS = ["azevedo.hebert@gmail.com"];
+var session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0], isAdmin:false };
+function setSessionEmail(email, name){
+  session.email = (email||"").toLowerCase();
+  session.name = name || session.email;
+  session.isAdmin = ADMIN_EMAILS.indexOf(session.email)!==-1;
+}
 var state = {
   campaign:null, campaignId:null, myCountryId:null, myLeader:null, myCountry:null,
-  countries:{}, turnKey:null, tickTimer:null
+  countries:{}, turnKey:null, tickTimer:null, isObserver:false
 };
 
 function el(id){ return document.getElementById(id); }
@@ -771,7 +777,7 @@ async function initAuth(){
       var provider = new fb.GoogleAuthProvider();
       var cred = await fb.signInWithPopup(fb.auth, provider);
       var u = cred.user;
-      session.email = (u.email||"").toLowerCase(); session.name = u.displayName || u.email;
+      setSessionEmail(u.email, u.displayName);
       var saved = savedKeyFor(session.email);
       if(saved){ session.apiKey = saved; await enterHub(); }
       else{ el("google-auth").classList.add("hidden"); el("key-step").classList.remove("hidden"); }
@@ -790,7 +796,7 @@ async function initAuth(){
   if(fbReady()){
     window.__fb.onAuthStateChanged(window.__fb.auth, function(u){
       if(u && !session.email){
-        session.email = (u.email||"").toLowerCase(); session.name = u.displayName||u.email;
+        setSessionEmail(u.email, u.displayName);
         var saved = savedKeyFor(session.email);
         if(saved){ session.apiKey = saved; enterHub(); }
       }
@@ -800,7 +806,7 @@ async function initAuth(){
 
 async function logout(){
   try{ if(fbReady()) await window.__fb.signOut(window.__fb.auth); }catch(e){}
-  session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0] };
+  session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0], isAdmin:false };
   showView("auth");
 }
 
@@ -825,7 +831,7 @@ function d20Test(attrScore, cd){
    HUB — lista e criação de campanhas
    ========================================================= */
 async function enterHub(){
-  el("hub-user-email").textContent = session.name || session.email;
+  el("hub-user-email").textContent = (session.name || session.email) + (session.isAdmin ? " · admin" : "");
   showView("hub");
   await refreshHubCampaigns();
 }
@@ -833,9 +839,11 @@ async function refreshHubCampaigns(){
   var box = el("hub-camp-list");
   box.innerHTML = "<p class='empty-note'>Carregando…</p>";
   var all = await fsList("campaign:");
-  var mine = all.map(function(r){return r.value;}).filter(function(c){
-    return c && Array.isArray(c.members) && c.members.indexOf(session.email)!==-1;
-  }).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+  var todas = all.map(function(r){return r.value;}).filter(Boolean).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+  var mine = todas.filter(function(c){ return Array.isArray(c.members) && c.members.indexOf(session.email)!==-1; });
+
+  if(session.isAdmin) renderAdminPanel(todas);
+
   if(!mine.length){ box.innerHTML = "<p class='empty-note'>Nenhuma campanha ainda. Funde seu primeiro reino acima.</p>"; return; }
   box.innerHTML = "";
   mine.forEach(function(c){
@@ -847,6 +855,55 @@ async function refreshHubCampaigns(){
     d.addEventListener("click", function(){ enterCampaign(c.id); });
     box.appendChild(d);
   });
+}
+
+/* =========================================================
+   PAINEL ADMINISTRATIVO — acesso liberado só para ADMIN_EMAILS
+   ========================================================= */
+function renderAdminPanel(todasCampanhas){
+  var host = el("hub-admin-panel");
+  if(!host){
+    host = document.createElement("div");
+    host.id = "hub-admin-panel";
+    host.className = "stat-panel";
+    host.style.marginBottom = "20px";
+    host.style.borderColor = "var(--gold-dim)";
+    el("hub-camp-list").parentNode.insertBefore(host, el("hub-camp-list"));
+  }
+  var html = "<h3>🛡️ Painel administrativo — "+esc(session.email)+"</h3>"+
+    "<p class='small-note' style='margin-top:-4px;'>Visão de todas as campanhas do sistema, mesmo as que você não joga.</p>";
+  if(!todasCampanhas.length){ html += "<p class='empty-note'>Nenhuma campanha no sistema ainda.</p>"; }
+  todasCampanhas.forEach(function(c){
+    var per = PERIODOS[c.periodoHistorico];
+    html += "<div class='camp-card' style='cursor:default;'><div>"+
+      "<div class='cc-name'>"+esc(c.name)+"</div>"+
+      "<div class='cc-sub'>"+esc(c.id)+" · dono: "+esc(c.ownerEmail)+" · "+esc(per?per.label:c.periodoHistorico)+" · "+esc(c.dataAtual||"")+" · "+(c.mode==="grupo"?"Grupo":"Solo")+"</div></div>"+
+      "<div style='display:flex;gap:6px;'><button class='ghost-btn' data-obs='"+esc(c.id)+"'>Entrar</button><button class='danger-btn' data-del='"+esc(c.id)+"'>Excluir</button></div>"+
+      "</div>";
+  });
+  host.innerHTML = html;
+  host.querySelectorAll("button[data-obs]").forEach(function(btn){
+    btn.addEventListener("click", function(){ enterCampaign(btn.getAttribute("data-obs")); });
+  });
+  host.querySelectorAll("button[data-del]").forEach(function(btn){
+    btn.addEventListener("click", async function(){
+      var id = btn.getAttribute("data-del");
+      if(!confirm("Excluir a campanha "+id+" e todos os dados associados? Isso não pode ser desfeito.")) return;
+      await excluirCampanha(id);
+      toast("Campanha excluída.");
+      refreshHubCampaigns();
+    });
+  });
+}
+async function excluirCampanha(campaignId){
+  var prefixos = ["country:"+campaignId+":", "leader:"+campaignId+":", "orders:"+campaignId+":", "turn:"+campaignId+":", "messages:"+campaignId+":"];
+  for(var i=0;i<prefixos.length;i++){
+    var rows = await fsList(prefixos[i]);
+    for(var j=0;j<rows.length;j++){ await fsPut(rows[j].key, null); }
+  }
+  await fsPut("diplomacy:"+campaignId, null);
+  await fsPut("events:"+campaignId, null);
+  await fsPut("campaign:"+campaignId, null);
 }
 var wizardMode = "solo";
 el("hub-new-solo").addEventListener("click", function(){ wizardMode="solo"; openWizard(); });
@@ -1009,9 +1066,86 @@ function gerarPaisesVizinhos(campaignId, periodoKey, populacaoBase, quantidade){
     var countryId = "pais_ia_"+Math.random().toString(36).slice(2,8);
     var pais = gerarPaisInicial(periodoKey, nomeCap[0], nomeCap[1], governo, pop, "País vizinho gerado pelo motor — controlado pela IA.");
     pais.controladoPorIA = true;
+    pais.perfilLideranca = gerarPerfilLideranca(governo);
     out.push({countryId:countryId, pais:pais});
   }
   return out;
+}
+
+/* =========================================================
+   PERFIL DE LIDERANÇA DOS PAÍSES IA — RF-007/RF-008
+   Cada país controlado pela IA recebe traços (0-100) que moldam tanto
+   as ordens internas que ele emite sozinho a cada mês quanto como ele
+   reage a propostas diplomáticas. Governos autoritários/impérios tendem
+   a puxar para militarismo/autoritarismo; repúblicas/cidades-estado
+   puxam para diplomacia/economia — com variação aleatória por cima.
+   ========================================================= */
+function gerarPerfilLideranca(governo){
+  function r(min,max){ return Math.round(min+Math.random()*(max-min)); }
+  var base = { agressividade:r(20,60), isolacionismo:r(15,55), ambicaoEconomica:r(30,70), autoritarismo:r(20,60), diplomacia:r(30,70) };
+  var viés = {
+    "Império":{agressividade:20, autoritarismo:20}, "Ditadura":{agressividade:25, autoritarismo:30, diplomacia:-15},
+    "Teocracia":{isolacionismo:15, autoritarismo:15}, "Feudal":{autoritarismo:10, isolacionismo:10},
+    "Monarquia":{autoritarismo:10}, "República":{diplomacia:15, ambicaoEconomica:10},
+    "Democracia":{diplomacia:20, agressividade:-15}, "Cidade-Estado":{ambicaoEconomica:20, isolacionismo:-10},
+    "Confederação":{diplomacia:10, autoritarismo:-15}, "Tribal":{isolacionismo:20, agressividade:10}
+  }[governo] || {};
+  Object.keys(viés).forEach(function(k){ base[k] = clamp(base[k]+viés[k],5,95); });
+  return base;
+}
+/* Gera as ordens internas que um país IA emite sozinho no mês, com peso
+   proporcional ao perfil (mais agressivo → mais chance de ordem militar
+   etc.), sem depender de nenhum jogador digitar nada por ele. */
+function gerarOrdensIA(pais){
+  var p = pais.perfilLideranca || gerarPerfilLideranca(pais.governo);
+  var pesos = [
+    ["militar", 15+p.agressividade],
+    ["economica", 15+p.ambicaoEconomica*0.6],
+    ["comercial", 10+p.ambicaoEconomica*0.4-p.isolacionismo*0.3],
+    ["diplomatica", 10+p.diplomacia*0.5-p.isolacionismo*0.3],
+    ["administrativa", 10+p.autoritarismo*0.5],
+    ["social", 10+(100-p.autoritarismo)*0.3],
+    ["tecnologica", 8+p.ambicaoEconomica*0.3],
+    ["infraestrutura", 8+p.ambicaoEconomica*0.3],
+    ["religiosa", 6+p.isolacionismo*0.2],
+    ["espionagem", 6+p.agressividade*0.3]
+  ].map(function(x){ return [x[0], Math.max(1,x[1])]; });
+  var totalPeso = pesos.reduce(function(s,x){return s+x[1];},0);
+  var qtd = 1 + (Math.random()<0.5?1:0); // 1 ou 2 ordens por mês
+  var escolhidas = [];
+  for(var n=0;n<qtd;n++){
+    var alvo = Math.random()*totalPeso, acc=0, tipo=pesos[0][0];
+    for(var i=0;i<pesos.length;i++){ acc+=pesos[i][1]; if(alvo<=acc){ tipo=pesos[i][0]; break; } }
+    escolhidas.push(tipo);
+  }
+  var textos = {
+    militar:"O Alto Comando reforça o treinamento e a prontidão das tropas.",
+    economica:"O Tesouro revisa a política fiscal para aumentar a arrecadação.",
+    comercial:"Mercadores locais são incentivados a expandir rotas comerciais.",
+    diplomatica:"Embaixadores são instruídos a estreitar laços com vizinhos.",
+    administrativa:"A administração central consolida seu controle sobre as províncias.",
+    social:"Programas de apoio à população são ampliados.",
+    tecnologica:"Investimento em novas técnicas e conhecimento é priorizado.",
+    infraestrutura:"Obras públicas avançam para melhorar estradas e portos.",
+    religiosa:"O clero local recebe apoio oficial do governo.",
+    espionagem:"Agentes são enviados para reunir informações sobre vizinhos."
+  };
+  return escolhidas.map(function(tipo){ return { tipo:tipo, texto:textos[tipo], secreta:(tipo==="espionagem"), autor:"ia" }; });
+}
+/* Decide se um país IA aceita ou recusa uma proposta diplomática,
+   com base no perfil de liderança e no tipo da proposta. Roda na
+   resolução do mês (RF-018: negociação também é assíncrona). */
+function decidirPropostaIA(paisAlvo, proposta){
+  var p = paisAlvo.perfilLideranca || gerarPerfilLideranca(paisAlvo.governo);
+  if(proposta.tipo==="declaracao_guerra") return "aceito"; // é registrada/reconhecida, não "aceita" no sentido de concordar
+  var chance = 50;
+  if(["tratado_paz","alianca","comercio","troca_territorio"].indexOf(proposta.tipo)!==-1){
+    chance += p.diplomacia*0.4 - p.agressividade*0.25 - p.isolacionismo*0.2;
+  } else if(["sancao","tributo","ameaca"].indexOf(proposta.tipo)!==-1){
+    chance += (100-p.agressividade)*0.2 - p.autoritarismo*0.3;
+  }
+  chance = clamp(chance,5,95);
+  return (Math.random()*100 < chance) ? "aceito" : "recusado";
 }
 
 el("wz-finish").addEventListener("click", async function(){
@@ -1099,30 +1233,55 @@ async function enterCampaign(campaignId){
   state.campaignId = campaignId;
   state.campaign = await fsGet("campaign:"+campaignId);
   if(!state.campaign){ toast("Campanha não encontrada."); showView("hub"); return; }
-  state.myCountryId = state.campaign.countryOfMember[session.email];
-  state.myLeader = await fsGet("leader:"+campaignId+":"+session.email);
+  state.isObserver = state.campaign.members.indexOf(session.email)===-1;
+  if(state.isObserver && !session.isAdmin){ toast("Você não faz parte desta campanha."); showView("hub"); return; }
+  state.myCountryId = state.isObserver ? null : state.campaign.countryOfMember[session.email];
+  state.myLeader = state.isObserver ? null : await fsGet("leader:"+campaignId+":"+session.email);
   await refreshCountriesIndex();
-  state.myCountry = state.countries[state.myCountryId];
+  state.myCountry = state.myCountryId ? state.countries[state.myCountryId] : null;
 
-  el("game-title").textContent = state.campaign.name;
+  el("game-title").textContent = state.campaign.name + (state.isObserver ? " (observador — admin)" : "");
   var per = PERIODOS[state.campaign.periodoHistorico];
   el("game-subtitle").textContent = per.label+" · "+state.campaign.dataAtual+" · "+(state.campaign.mode==="grupo"?"grupo":"solo");
-  el("game-invite").classList.toggle("hidden", state.campaign.mode!=="grupo" || state.campaign.ownerEmail!==session.email);
+  el("game-invite").classList.toggle("hidden", state.isObserver || state.campaign.mode!=="grupo" || state.campaign.ownerEmail!==session.email);
+  renderAdminToolbar();
 
   showView("game");
-  switchGameTab("pais");
+  switchGameTab(state.isObserver ? "mundo" : "pais");
   renderPaisPanel();
   renderOrdensTab();
   renderDiplomaciaTab();
   renderMundoPanel();
   renderHistoricoPanel();
-  await loadChat();
+  if(!state.isObserver) await loadChat();
 
   if(state.tickTimer) clearInterval(state.tickTimer);
   if(state.campaign.mode==="grupo"){
     checkAndAdvanceTurn();
     state.tickTimer = setInterval(checkAndAdvanceTurn, 45000);
   }
+}
+function renderAdminToolbar(){
+  var old = el("admin-toolbar"); if(old) old.remove();
+  if(!session.isAdmin) return;
+  var bar = document.createElement("div");
+  bar.id = "admin-toolbar"; bar.className = "stat-panel"; bar.style.borderColor = "var(--gold-dim)"; bar.style.margin = "12px 18px 0";
+  bar.innerHTML = "<h3>🛡️ Ferramentas de admin</h3><div class='card-actions' style='margin-top:0;'>"+
+    "<button class='secondary-btn' id='admin-forcar-turno'>Forçar resolução do turno agora</button>"+
+    "<button class='danger-btn' id='admin-excluir-camp'>Excluir esta campanha</button></div>";
+  el("layout").insertBefore(bar, el("layout").firstChild);
+  el("admin-forcar-turno").addEventListener("click", async function(){
+    toast("Resolvendo turno…");
+    await resolverTurno(state.campaignId, state.campaign.dataAtual);
+    await enterCampaign(state.campaignId);
+  });
+  el("admin-excluir-camp").addEventListener("click", async function(){
+    if(!confirm("Excluir esta campanha e todos os dados associados?")) return;
+    if(state.tickTimer) clearInterval(state.tickTimer);
+    await excluirCampanha(state.campaignId);
+    toast("Campanha excluída.");
+    showView("hub"); refreshHubCampaigns();
+  });
 }
 async function refreshCountriesIndex(){
   var rows = await fsList("country:"+state.campaignId+":");
@@ -1164,7 +1323,12 @@ function switchGameTab(name){
 /* ---- Painel do País (RF-005 / RF-021) ---- */
 function renderPaisPanel(){
   var c = state.myCountry; var chefe = state.myLeader;
-  if(!c){ el("pais-panel-content").innerHTML = "<p class='empty-note'>País não encontrado.</p>"; return; }
+  if(!c){
+    el("pais-panel-content").innerHTML = state.isObserver
+      ? "<p class='empty-note'>Modo observador (admin) — este e-mail não governa nenhum país nesta campanha. Veja a aba Mundo para a lista completa de países.</p>"
+      : "<p class='empty-note'>País não encontrado.</p>";
+    return;
+  }
   var html = "";
   html += "<div class='stat-panel'><h3>"+esc(c.nome)+" — "+esc(c.governo)+"</h3>";
   html += "<div class='stat-grid'>"+
@@ -1203,6 +1367,11 @@ function fmtNum(n){ n = Math.round(n||0); return n.toLocaleString("pt-BR"); }
 function currentTurnKey(){ return state.campaign.dataAtual; }
 async function renderOrdensTab(){
   var camp = state.campaign;
+  if(state.isObserver){
+    el("turn-banner-ordens").innerHTML = "<div><div class='tb-date'>"+currentTurnKey()+"</div><div class='tb-sub'>Modo observador (admin) — sem país próprio nesta campanha</div></div>";
+    el("ordens-list").innerHTML = "<p class='empty-note'>Use o painel administrativo acima para forçar a resolução do turno, se necessário.</p>";
+    return;
+  }
   var turno = await fsGet("turn:"+state.campaignId+":"+currentTurnKey());
   var statusTxt = { ABERTO:"Aberto para ordens", FECHADO:"Ordens encerradas — aguardando processamento", PROCESSANDO:"Processando o mês…", RESOLVIDO:"Resolvido", PUBLICADO:"Publicado" };
   var banner = el("turn-banner-ordens");
@@ -1229,6 +1398,7 @@ async function renderOrdensTab(){
   });
 }
 el("ord-add").addEventListener("click", async function(){
+  if(state.isObserver){ toast("Modo observador — sem país próprio."); return; }
   var texto = el("ord-texto").value.trim();
   if(!texto){ toast("Descreva a ordem."); return; }
   var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
@@ -1242,6 +1412,11 @@ el("ord-add").addEventListener("click", async function(){
 
 /* ---- Diplomacia (RF-017 / RF-018) ---- */
 function renderDiplomaciaTab(){
+  if(state.isObserver){
+    el("diplo-list").innerHTML = "<p class='empty-note'>Modo observador (admin) — sem país próprio para negociar nesta campanha.</p>";
+    el("diplo-alvo").innerHTML = "";
+    return;
+  }
   var sel = el("diplo-alvo"); sel.innerHTML = "";
   Object.keys(state.countries).forEach(function(cid){
     if(cid===state.myCountryId) return;
@@ -1280,6 +1455,7 @@ async function loadDiplomacyList(){
   });
 }
 el("diplo-send").addEventListener("click", async function(){
+  if(state.isObserver){ toast("Modo observador — sem país próprio."); return; }
   var alvo = el("diplo-alvo").value; var texto = el("diplo-texto").value.trim();
   if(!alvo || !texto){ toast("Escolha um destinatário e escreva os termos."); return; }
   var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
@@ -1367,6 +1543,7 @@ function renderChat(msgs){
 }
 el("chat-form").addEventListener("submit", async function(ev){
   ev.preventDefault();
+  if(state.isObserver){ toast("Modo observador — sem país próprio para consultar o Conselho."); return; }
   var input = el("chat-input"); var texto = input.value.trim();
   if(!texto) return;
   input.value = "";
@@ -1437,12 +1614,33 @@ async function resolverTurno(campaignId, turnoAtual){
     var countryIds = Object.keys(state.countries);
     var resumosPorPais = {};
 
+    // RF-018: propostas diplomáticas pendentes endereçadas a países IA são
+    // respondidas agora, na passagem do mês — de acordo com o perfil de
+    // liderança de cada um (não ficam mais paradas para sempre).
+    var propostas = (await fsGet("diplomacy:"+campaignId)) || [];
+    var houveRespostaDiplomatica = false;
+    for(var pi=0;pi<propostas.length;pi++){
+      var prop = propostas[pi];
+      if(prop.status!=="pendente") continue;
+      var alvo = state.countries[prop.toCountry];
+      if(!alvo || !alvo.controladoPorIA) continue; // países de jogadores humanos respondem manualmente
+      prop.status = decidirPropostaIA(alvo, prop);
+      prop.respondidaEm = Date.now();
+      houveRespostaDiplomatica = true;
+      var origem = state.countries[prop.fromCountry];
+      await appendEvent(campaignId, turnoAtual, (prop.status==="aceito"?"Aceita":"Recusada")+" por "+alvo.nome+": proposta de "+prop.tipo+" enviada por "+(origem?origem.nome:"?")+".", "diplomacia");
+    }
+    if(houveRespostaDiplomatica) await fsPut("diplomacy:"+campaignId, propostas);
+
     for(var i=0;i<countryIds.length;i++){
       var cid = countryIds[i];
       var c = state.countries[cid];
       derivaDeFundo(c);
       var ordersKey = "orders:"+campaignId+":"+cid+":"+turnoAtual;
       var ordens = (await fsGet(ordersKey)) || [];
+      // RF-007/RF-008: país IA emite suas próprias ordens internas todo
+      // mês, de acordo com o perfil de liderança — não fica parado.
+      if(c.controladoPorIA){ ordens = ordens.concat(gerarOrdensIA(c)); }
       var resumos = [];
       ordens.forEach(function(o){
         var teste = d20Test(14, 12); // CD base 12; atributo 14 como aproximação de "governo competente"
