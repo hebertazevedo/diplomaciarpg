@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Diplomacia — RPG de Chefes de Estado (D20)</title>
+
+<script>
+/* =====================================================================
+   CONFIGURAÇÃO DO FIREBASE — PROJETO diplomacia-dcdc4
+   -----------------------------------------------------------------
+   Preencha apiKey / appId / messagingSenderId com os valores reais do
+   seu projeto (Console do Firebase → Configurações do projeto → Seus
+   apps → SDK setup). O projectId já está fixado como pedido.
+   Sem esses valores reais, o app roda em modo "sem backend" (avisos
+   na tela) — o cadastro e os dados não serão salvos.
+   ===================================================================== */
+window.FIREBASE_CONFIG = {
+  apiKey: "COLE_AQUI_A_API_KEY_DO_PROJETO",
+  authDomain: "diplomacia-dcdc4.firebaseapp.com",
+  projectId: "diplomacia-dcdc4",
+  storageBucket: "diplomacia-dcdc4.firebasestorage.app",
+  messagingSenderId: "COLE_AQUI_O_SENDER_ID",
+  appId: "COLE_AQUI_O_APP_ID"
+};
+window.__fbPending = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && window.FIREBASE_CONFIG.apiKey.indexOf("COLE_AQUI")!==0);
+window.__fbStage = window.__fbPending ? "1-config-ok" : "0-sem-config";
+window.__fbError = null;
+</script>
+
+<script type="module">
+if (window.__fbPending) {
+  window.__fbStage = "2-modulo-iniciou";
+  try {
+    const [{ initializeApp }, auth, fs] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js")
+    ]);
+    window.__fbStage = "3-sdk-baixado";
+    const app = initializeApp(window.FIREBASE_CONFIG);
+    window.__fb = {
+      auth: auth.getAuth(app),
+      db: fs.getFirestore(app),
+      GoogleAuthProvider: auth.GoogleAuthProvider,
+      signInWithPopup: auth.signInWithPopup,
+      signOut: auth.signOut,
+      onAuthStateChanged: auth.onAuthStateChanged,
+      doc: fs.doc, getDoc: fs.getDoc, setDoc: fs.setDoc, deleteDoc: fs.deleteDoc,
+      collection: fs.collection, getDocs: fs.getDocs, query: fs.query, where: fs.where,
+      onSnapshot: fs.onSnapshot, runTransaction: fs.runTransaction
+    };
+    window.__fbStage = "4-pronto";
+    console.info("Firebase pronto:", window.FIREBASE_CONFIG.projectId);
+  } catch (e) {
+    window.__fbStage = "ERRO";
+    window.__fbError = (e && (e.message || e.code)) ? (e.code ? e.code+" — "+e.message : e.message) : String(e);
+    console.error("Firebase não carregou:", e);
+  }
+  window.__fbPending = false;
+  window.dispatchEvent(new Event("firebase-ready"));
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1013; --panel:#16171c; --panel2:#1b1c22; --line:#2a2b33;
+  --ink:#eceef2; --ink-dim:#9a9ca6; --ink-faint:#6b6d78;
+  --gold:#c9a24b; --gold-dim:#8a7439;
+  --red:#c0483f; --green:#4a8f5c; --blue:#3f7fbf; --purple:#7a5fb0;
+  --radius:10px;
+  font-size:15px;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{
+  background:radial-gradient(1200px 800px at 50% -10%, #1a1c22, var(--bg) 60%);
+  color:var(--ink); font-family:"Inter",system-ui,sans-serif; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.brand-text b,.serif{font-family:"Cinzel",serif;}
+button{font-family:inherit;}
+.hidden{display:none !important;}
+a{color:var(--gold);}
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#2c2d35;border-radius:8px;}
+
+#app{height:100%;}
+.view{display:none;height:100%;}
+.view.active{display:flex;flex-direction:column;}
+
+.centered-screen{align-items:center;justify-content:center;padding:20px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+.mark-row{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.brand-mark{width:42px;height:42px;border-radius:10px;background:linear-gradient(140deg,var(--gold),var(--gold-dim));display:flex;align-items:center;justify-content:center;font-weight:700;color:#1a1408;font-size:20px;flex-shrink:0;}
+.card-title{margin:0;font-size:20px;font-weight:700;}
+.card-sub{margin:2px 0 0;color:var(--ink-dim);font-size:13px;}
+.card-lede{color:var(--ink-dim);font-size:14px;margin:14px 0;}
+.card-error{color:#ff8a80;font-size:13px;background:rgba(192,72,63,.12);border:1px solid rgba(192,72,63,.3);padding:8px 10px;border-radius:8px;}
+.hint{color:var(--ink-faint);font-size:12px;margin:6px 0 0;}
+.security-note{font-size:12px;color:var(--ink-faint);margin:10px 0;}
+
+.field{margin:12px 0;}
+.field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:5px;}
+.text-input,select.text-input,textarea.text-input{
+  width:100%;background:#101116;border:1px solid var(--line);border-radius:8px;color:var(--ink);
+  padding:10px 12px;font-size:14px;font-family:inherit;
+}
+textarea.text-input{resize:vertical;}
+.input-with-btn{display:flex;gap:8px;}
+.input-with-btn .text-input{flex:1;}
+
+.primary-btn{background:linear-gradient(140deg,var(--gold),var(--gold-dim));color:#1a1408;border:none;border-radius:8px;padding:11px 18px;font-weight:700;cursor:pointer;font-size:14px;}
+.primary-btn:disabled{opacity:.5;cursor:not-allowed;}
+.secondary-btn,.ghost-btn{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;}
+.danger-btn{background:var(--red);color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;}
+.card-actions{margin-top:16px;display:flex;gap:10px;}
+.card-switch{margin-top:14px;font-size:13px;color:var(--ink-dim);}
+
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#111;border:none;border-radius:8px;padding:12px;font-weight:600;cursor:pointer;}
+.g-logo{width:20px;height:20px;border-radius:50%;background:#4285F4;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;}
+.backend-badge{font-size:11px;color:var(--ink-faint);margin:8px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;}
+
+/* ---- Top bar / hub ---- */
+#top-bar,.game-topbar{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#181920,#141419);flex-shrink:0;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-text b{font-size:15px;}
+.brand-text span{display:block;font-size:11px;color:var(--ink-faint);}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.icon-btn{width:34px;height:34px;border-radius:8px;background:transparent;border:1px solid var(--line);color:var(--ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.icon-btn svg{width:17px;height:17px;}
+.icon-btn:hover{color:var(--ink);border-color:#3a3b45;}
+
+.hub-scroll{flex:1;overflow-y:auto;padding:20px;max-width:900px;margin:0 auto;width:100%;}
+.hub-header h1{margin:0;font-size:24px;}
+.hub-header p{color:var(--ink-dim);margin:4px 0 20px;}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;}
+@media (max-width:560px){.action-grid{grid-template-columns:1fr;}}
+.action-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;cursor:pointer;transition:border-color .15s;}
+.action-card:hover{border-color:var(--gold-dim);}
+.action-card .glyph{font-size:26px;}
+.action-card b{display:block;margin:8px 0 4px;}
+.action-card span{color:var(--ink-dim);font-size:13px;}
+.adv-list-title{color:var(--ink-faint);font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:22px 0 8px;}
+.camp-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.camp-card:hover{border-color:var(--gold-dim);}
+.camp-card .cc-name{font-weight:700;}
+.camp-card .cc-sub{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+.camp-card .cc-badge{font-size:11px;padding:3px 8px;border-radius:20px;background:#20222a;color:var(--ink-dim);white-space:nowrap;}
+.camp-card .cc-badge.open{color:#8fd39e;background:rgba(74,143,92,.15);}
+.camp-card .cc-badge.closed{color:#e0b96b;background:rgba(201,162,75,.15);}
+.empty-note{color:var(--ink-faint);font-size:13px;padding:14px 0;}
+
+/* ---- wizard (creation) ---- */
+.wizard-shell{max-width:640px;margin:0 auto;padding:24px 18px 60px;width:100%;}
+.wizard-steps{display:flex;gap:6px;margin-bottom:22px;}
+.wizard-steps span{flex:1;height:4px;border-radius:3px;background:#25262d;}
+.wizard-steps span.done{background:var(--gold-dim);}
+.wizard-steps span.active{background:var(--gold);}
+.period-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media (max-width:560px){.period-grid{grid-template-columns:1fr;}}
+.period-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;}
+.period-card:hover{border-color:var(--gold-dim);}
+.period-card.selected{border-color:var(--gold);background:#1c1a12;}
+.period-card b{display:block;font-size:15px;margin-bottom:4px;}
+.period-card .yr{color:var(--ink-faint);font-size:12px;}
+.period-card p{color:var(--ink-dim);font-size:12.5px;margin:8px 0 0;}
+.attr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+@media (max-width:480px){.attr-grid{grid-template-columns:repeat(2,1fr);}}
+.attr-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;}
+.attr-box .al{font-size:11px;color:var(--ink-faint);text-transform:uppercase;}
+.attr-box .av{font-size:20px;font-weight:700;margin:4px 0;}
+.attr-box .ap{font-size:11px;color:var(--ink-dim);}
+.attr-box .stepper{display:flex;justify-content:center;gap:6px;margin-top:6px;}
+.attr-box .stepper button{width:24px;height:24px;border-radius:6px;border:1px solid var(--line);background:#101116;color:var(--ink);cursor:pointer;}
+.points-left{text-align:center;color:var(--gold);font-weight:700;margin:8px 0 16px;font-size:13px;}
+.divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--ink-faint);font-size:11px;text-transform:uppercase;}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+
+/* ---- game shell / painel ---- */
+.tabbar{display:flex;gap:2px;margin-left:8px;overflow-x:auto;}
+.tabbar button{background:transparent;border:none;color:var(--ink-faint);padding:8px 12px;font-size:12.5px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tabbar button.active{color:var(--ink);border-color:var(--gold);}
+#layout{flex:1;overflow:hidden;position:relative;}
+.gtab{display:none;height:100%;overflow-y:auto;padding:18px;max-width:900px;margin:0 auto;width:100%;}
+.gtab.active{display:block;}
+
+.stat-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+.stat-panel h3{margin:0 0 12px;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.stat-item{background:#101116;border:1px solid var(--line);border-radius:8px;padding:9px 10px;}
+.stat-item .sl{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;}
+.stat-item .sv{font-size:16px;font-weight:700;margin-top:2px;}
+.stat-item .sv.up{color:#8fd39e;} .stat-item .sv.down{color:#e08a80;}
+.bar{height:6px;background:#101116;border-radius:4px;overflow:hidden;margin-top:5px;}
+.bar > div{height:100%;background:var(--gold-dim);}
+.pop-row{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dashed var(--line);}
+.pop-row:last-child{border:none;}
+
+.order-form{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
+.order-row{display:flex;gap:8px;flex-wrap:wrap;}
+.order-row > *{flex:1;min-width:140px;}
+.order-list-item{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.order-list-item .ot{font-size:11px;color:var(--gold);text-transform:uppercase;}
+.order-list-item .oc{font-size:13px;margin-top:2px;}
+.order-list-item .secret-tag{font-size:10px;color:#e08a80;border:1px solid rgba(224,138,128,.4);padding:1px 6px;border-radius:10px;}
+.turn-banner{background:linear-gradient(90deg,#1c1a12,#16171c);border:1px solid var(--gold-dim);border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.turn-banner .tb-date{font-size:18px;font-weight:700;font-family:"Cinzel",serif;color:var(--gold);}
+.turn-banner .tb-sub{font-size:12px;color:var(--ink-dim);}
+.turn-banner .tb-status{font-size:11px;padding:4px 10px;border-radius:20px;background:#20222a;}
+
+.chat-scroll-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;height:70vh;overflow:hidden;}
+.chat-msgs{flex:1;overflow-y:auto;padding:14px;}
+.msg{max-width:80%;padding:10px 13px;border-radius:12px;margin-bottom:10px;font-size:14px;line-height:1.5;white-space:pre-wrap;}
+.msg.me{background:var(--gold-dim);color:#1a1408;margin-left:auto;border-bottom-right-radius:3px;}
+.msg.gm{background:var(--panel2);border:1px solid var(--line);margin-right:auto;border-bottom-left-radius:3px;}
+.msg .msg-tag{font-size:10.5px;opacity:.7;display:block;margin-bottom:3px;}
+.chat-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);}
+.chat-form textarea{flex:1;background:#101116;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px;font-family:inherit;font-size:14px;resize:none;}
+.send-btn{background:linear-gradient(140deg,var(--gold),var(--gold-dim));color:#1a1408;border:none;border-radius:8px;padding:0 18px;font-weight:700;cursor:pointer;}
+
+.event-item{border-left:2px solid var(--gold-dim);padding:6px 0 6px 12px;margin-bottom:8px;font-size:13px;}
+.event-item .ei-date{color:var(--gold);font-size:11px;font-weight:700;}
+.event-month{margin-bottom:16px;}
+.event-month h4{margin:0 0 6px;font-size:13px;color:var(--ink-dim);font-family:"Cinzel",serif;}
+
+.diplo-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+.diplo-card .dc-top{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-dim);}
+.diplo-card .dc-status{padding:2px 8px;border-radius:10px;font-size:10.5px;}
+.diplo-card .dc-status.pendente{background:rgba(201,162,75,.15);color:var(--gold);}
+.diplo-card .dc-status.aceito{background:rgba(74,143,92,.15);color:#8fd39e;}
+.diplo-card .dc-status.recusado{background:rgba(192,72,63,.15);color:#e08a80;}
+
+.roll-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 18px;font-size:13px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
+.modal-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);}
+.modal-head h3{margin:0;font-size:16px;}
+.modal-body{padding:16px 18px;}
+.modal-actions{padding:14px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;}
+.small-note{font-size:12px;color:var(--ink-faint);}
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.mini-badge{font-size:11px;background:#20222a;border-radius:20px;padding:3px 9px;color:var(--ink-dim);}
+label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-dim);}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ============ AUTH ============ -->
+<div id="view-auth" class="view centered-screen active">
+  <div class="card">
+    <div class="mark-row">
+      <div class="brand-mark">D</div>
+      <div><p class="card-title">Diplomacia</p><p class="card-sub">RPG de Chefes de Estado — sistema D20</p></div>
+    </div>
+    <p class="card-lede">Entre com sua conta Google para governar.</p>
+    <div class="backend-badge" id="backend-badge"></div>
+    <div id="auth-unavailable" class="hidden">
+      <p class="card-error">Não foi possível conectar ao Firebase. Confira <code>window.FIREBASE_CONFIG</code> no topo do arquivo.</p>
+    </div>
+    <div class="key-step hidden" id="key-step">
+      <div class="field"><label for="ks-key">Chave de API do Gemini</label>
+        <div class="input-with-btn">
+          <input id="ks-key" class="text-input" type="password" placeholder="AIzaSy…" autocomplete="off">
+          <button type="button" class="ghost-btn" id="ks-key-toggle">Mostrar</button>
+        </div>
+        <p class="hint">Fica só neste dispositivo. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Criar chave gratuita ↗</a></p>
+      </div>
+      <div class="card-actions"><button class="primary-btn" id="ks-start">Começar a governar</button></div>
+    </div>
+    <div class="google-auth hidden" id="google-auth">
+      <button type="button" class="google-btn" id="google-signin"><span class="g-logo">G</span> Entrar com a conta Google</button>
+      <p class="security-note">🔒 Login pelo Google — sua chave do Gemini nunca sai deste dispositivo.</p>
+    </div>
+    <p id="auth-error" class="card-error hidden"></p>
+  </div>
+</div>
+
+<!-- ============ HUB ============ -->
+<div id="view-hub" class="view">
+  <header id="top-bar">
+    <div class="brand"><div class="brand-mark">D</div><div class="brand-text"><b>Diplomacia</b><span id="hub-user-email">—</span></div></div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="hub-key" title="Trocar chave do Gemini">🔑</button>
+      <button class="icon-btn" id="hub-logout" title="Sair">⏻</button>
+    </div>
+  </header>
+  <div class="hub-scroll">
+    <div class="hub-header"><h1>Salão do Trono</h1><p>Escolha uma campanha ou funde um novo reino</p></div>
+    <div class="action-grid">
+      <div class="action-card" id="hub-new-solo"><div class="glyph">👑</div><b>Nova campanha solo</b><span>Você governa, a IA simula o mundo inteiro em tempo real.</span></div>
+      <div class="action-card" id="hub-new-group"><div class="glyph">🏛️</div><b>Nova campanha em grupo</b><span>Vários Chefes de Estado, turnos diários assíncronos (00:01–20:00).</span></div>
+    </div>
+    <p class="adv-list-title">Suas campanhas</p>
+    <div id="hub-camp-list"><p class="empty-note">Carregando…</p></div>
+  </div>
+</div>
+
+<!-- ============ WIZARD: PERÍODO → CHEFE → PAÍS ============ -->
+<div id="view-wizard" class="view">
+  <header id="top-bar-wizard" class="game-topbar">
+    <button class="icon-btn" id="wizard-back">←</button>
+    <div class="brand-text"><b id="wizard-title">Fundar um reino</b><span id="wizard-sub">Passo 1 de 3</span></div>
+  </header>
+  <div class="hub-scroll">
+    <div class="wizard-shell">
+      <div class="wizard-steps"><span id="wz-step-1"></span><span id="wz-step-2"></span><span id="wz-step-3"></span></div>
+
+      <!-- Step 1: período -->
+      <div id="wz-panel-1">
+        <h2>Escolha o período histórico</h2>
+        <p class="card-lede">Isso define tecnologia, governo, economia, guerra e diplomacia disponíveis — não é só decoração.</p>
+        <div class="period-grid" id="period-grid"></div>
+        <div class="field" id="campaign-name-field" style="margin-top:18px;">
+          <label for="wz-camp-name">Nome da campanha</label>
+          <input id="wz-camp-name" class="text-input" placeholder="Ex: A Era dos Reinos de Ferro">
+        </div>
+        <div class="field hidden" id="wz-invite-field">
+          <label>Convidar Chefes de Estado por e-mail (opcional agora, dá para convidar depois)</label>
+          <div id="wz-invites"></div>
+          <button type="button" class="ghost-btn" id="wz-add-invite">+ adicionar e-mail</button>
+        </div>
+        <div class="card-actions"><button class="primary-btn" id="wz-to-2" disabled>Continuar →</button></div>
+      </div>
+
+      <!-- Step 2: chefe de estado -->
+      <div id="wz-panel-2" class="hidden">
+        <h2>Ficha do Chefe de Estado</h2>
+        <div class="field"><label for="chefe-nome">Nome</label><input id="chefe-nome" class="text-input" placeholder="Ex: Elric III"></div>
+        <div class="field"><label for="chefe-titulo">Título</label><input id="chefe-titulo" class="text-input" placeholder="Ex: Rei, Imperador, Cônsul, Presidente…"></div>
+        <div class="field"><label for="chefe-dinastia">Dinastia / família (opcional)</label><input id="chefe-dinastia" class="text-input"></div>
+        <div class="field"><label for="chefe-legitimidade">Como chegou ao poder</label>
+          <select id="chefe-legitimidade" class="text-input">
+            <option value="hereditaria">Sucessão hereditária</option>
+            <option value="eleicao">Eleição</option>
+            <option value="golpe">Golpe / usurpação</option>
+            <option value="conquista">Conquista militar</option>
+            <option value="designacao">Designação religiosa / divina</option>
+          </select>
+        </div>
+        <div class="divider">atributos (D20) — 6 pontos para distribuir, base 10</div>
+        <p class="points-left" id="attr-points-left">Pontos restantes: 6</p>
+        <div class="attr-grid" id="attr-grid"></div>
+        <div class="card-actions"><button class="secondary-btn" id="wz-to-1b">← Voltar</button><button class="primary-btn" id="wz-to-3">Continuar →</button></div>
+      </div>
+
+      <!-- Step 3: país -->
+      <div id="wz-panel-3" class="hidden">
+        <h2>Ficha do País</h2>
+        <div class="field"><label for="pais-nome">Nome do país</label><input id="pais-nome" class="text-input" placeholder="Ex: Reino de Val'Aurea"></div>
+        <div class="field"><label for="pais-capital">Capital</label><input id="pais-capital" class="text-input"></div>
+        <div class="field"><label for="pais-governo">Forma de governo</label><select id="pais-governo" class="text-input"></select></div>
+        <div class="field"><label for="pais-pop">População inicial (habitantes)</label><input id="pais-pop" class="text-input" type="number" placeholder="Ex: 800000"></div>
+        <div class="field"><label for="pais-desc">Descrição livre (território, cultura, vizinhos — opcional)</label><textarea id="pais-desc" class="text-input" rows="3"></textarea></div>
+        <p class="small-note">O tesouro, exército, produção e demais números iniciais são calculados automaticamente pelo motor a partir do período histórico e da população — depois você pode consultar tudo no Painel do País.</p>
+        <p id="wz-error" class="card-error hidden"></p>
+        <div class="card-actions"><button class="secondary-btn" id="wz-to-2b">← Voltar</button><button class="primary-btn" id="wz-finish">Fundar reino e começar</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CAMPANHA (painel do jogo) ============ -->
+<div id="view-game" class="view">
+  <header id="top-bar-game" class="game-topbar">
+    <button class="icon-btn" id="game-back">←</button>
+    <div class="brand-text"><b id="game-title">Campanha</b><span id="game-subtitle">—</span></div>
+    <div class="tabbar" id="tabbar">
+      <button data-tab="pais">País</button>
+      <button data-tab="ordens">Ordens</button>
+      <button data-tab="diplomacia">Diplomacia</button>
+      <button data-tab="mundo">Mundo</button>
+      <button data-tab="historico">Histórico</button>
+      <button data-tab="conselho" class="active">Conselho</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn hidden" id="game-invite" title="Convidar Chefe de Estado">➕</button>
+    </div>
+  </header>
+  <div id="layout">
+
+    <div class="gtab" id="gtab-pais"><div id="pais-panel-content"></div></div>
+
+    <div class="gtab" id="gtab-ordens">
+      <div class="turn-banner" id="turn-banner-ordens"></div>
+      <div class="order-form">
+        <h3 style="margin:0 0 10px;font-size:14px;color:var(--gold);">Nova ordem</h3>
+        <div class="order-row">
+          <select id="ord-tipo" class="text-input">
+            <option value="economica">Econômica</option>
+            <option value="militar">Militar</option>
+            <option value="diplomatica">Diplomática</option>
+            <option value="social">Social</option>
+            <option value="tecnologica">Tecnológica</option>
+            <option value="religiosa">Religiosa</option>
+            <option value="administrativa">Administrativa</option>
+            <option value="espionagem">Espionagem</option>
+            <option value="comercial">Comercial</option>
+            <option value="infraestrutura">Infraestrutura</option>
+          </select>
+          <label class="inline"><input type="checkbox" id="ord-secreta"> Ordem secreta</label>
+        </div>
+        <div class="field"><textarea id="ord-texto" class="text-input" rows="2" placeholder="Descreva a ordem em linguagem natural — ex: 'Aumentar impostos sobre a agricultura em 15%'"></textarea></div>
+        <div class="card-actions"><button class="primary-btn" id="ord-add">Adicionar ordem</button></div>
+      </div>
+      <h3 style="font-size:13px;color:var(--ink-dim);margin:16px 0 8px;">Ordens deste mês</h3>
+      <div id="ordens-list"></div>
+    </div>
+
+    <div class="gtab" id="gtab-diplomacia">
+      <div class="order-form">
+        <h3 style="margin:0 0 10px;font-size:14px;color:var(--gold);">Propor a outro país</h3>
+        <div class="order-row">
+          <select id="diplo-alvo" class="text-input"></select>
+          <select id="diplo-tipo" class="text-input">
+            <option value="tratado_paz">Tratado de paz</option>
+            <option value="alianca">Aliança</option>
+            <option value="comercio">Acordo comercial</option>
+            <option value="declaracao_guerra">Declaração de guerra</option>
+            <option value="sancao">Sanção</option>
+            <option value="tributo">Exigir tributo</option>
+            <option value="troca_territorio">Troca de território/recursos</option>
+            <option value="ameaca">Ameaça / ultimato</option>
+          </select>
+        </div>
+        <div class="field"><textarea id="diplo-texto" class="text-input" rows="2" placeholder="Termos da proposta"></textarea></div>
+        <div class="card-actions"><button class="primary-btn" id="diplo-send">Enviar proposta</button></div>
+      </div>
+      <h3 style="font-size:13px;color:var(--ink-dim);margin:16px 0 8px;">Negociações</h3>
+      <div id="diplo-list"></div>
+    </div>
+
+    <div class="gtab" id="gtab-mundo"><div id="mundo-panel-content"></div></div>
+
+    <div class="gtab" id="gtab-historico"><div id="historico-panel-content"></div></div>
+
+    <div class="gtab active" id="gtab-conselho">
+      <div class="chat-scroll-box">
+        <div class="chat-msgs" id="chat-msgs"></div>
+        <form class="chat-form" id="chat-form">
+          <textarea id="chat-input" rows="1" placeholder="Fale com seus ministros e conselheiros…"></textarea>
+          <button type="submit" class="send-btn" id="chat-send">Enviar</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div>
+
+<div id="toast-root"></div>
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   CONSTANTES DE DOMÍNIO — RF-001, RF-003, RF-004, RF-029
+   ========================================================= */
+var PERIODOS = {
+  antiguidade: {
+    label:"Antiguidade", faixa:"até 500 d.C.", anoDefault:-500, tecNivel:1,
+    governos:["Monarquia","Cidade-Estado","Império","Teocracia","Tribal"],
+    desc:"Bronze e ferro, exércitos de infantaria, comércio por caravanas e mar próximo, comunicação por mensageiros.",
+    velocidadeMsg:"dias a semanas (mensageiro/navio)", deslocMilitar:"lento, a pé",
+    tesouroBase:800, producaoBase:1.0, expectativaVida:32
+  },
+  medieval: {
+    label:"Idade Média", faixa:"500–1450", anoDefault:1200, tecNivel:2,
+    governos:["Monarquia","Feudal","Cidade-Estado","Teocracia","Império","Confederação"],
+    desc:"Feudalismo, cavalaria pesada, castelos, guildas, peste como risco real, Igreja/religião como poder político.",
+    velocidadeMsg:"dias (cavalo) a semanas (navio)", deslocMilitar:"marcha + cavalaria",
+    tesouroBase:2400, producaoBase:1.3, expectativaVida:35
+  },
+  moderna: {
+    label:"Era Moderna", faixa:"1450–1900", anoDefault:1700, tecNivel:3,
+    governos:["Monarquia","República","Império","Confederação","Ditadura"],
+    desc:"Pólvora, exploração ultramarina, mercantilismo, imprensa, diplomacia formal entre embaixadas permanentes.",
+    velocidadeMsg:"dias (correio) a semanas (navio transoceânico)", deslocMilitar:"infantaria de linha + artilharia",
+    tesouroBase:9000, producaoBase:2.2, expectativaVida:42
+  },
+  contemporanea: {
+    label:"Contemporaneidade", faixa:"1900–hoje", anoDefault:2026, tecNivel:4,
+    governos:["República","Democracia","Ditadura","Monarquia Constitucional","Confederação"],
+    desc:"Indústria, telecomunicações instantâneas, organismos internacionais, opinião pública de massa, armas modernas.",
+    velocidadeMsg:"instantânea (telecomunicação)", deslocMilitar:"motorizado/aéreo",
+    tesouroBase:60000, producaoBase:5.0, expectativaVida:74
+  }
+};
+
+var ATRIBUTOS = [
+  {key:"for", nome:"Força", app:"Liderança militar direta e comando de tropas"},
+  {key:"des", nome:"Destreza", app:"Agilidade política e tática, capacidade de reagir rápido"},
+  {key:"con", nome:"Constituição", app:"Resistência a crises, doenças, cerco, pressão prolongada"},
+  {key:"int", nome:"Inteligência", app:"Estratégia, planejamento, administração do Estado"},
+  {key:"sab", nome:"Sabedoria", app:"Percepção, diplomacia, julgamento de longo prazo"},
+  {key:"car", nome:"Carisma", app:"Liderança, negociação, influência sobre a população e outros líderes"}
+];
+
+var PERICIAS = {
+  "Governo":["Administração","Diplomacia","Política interna","Direito","Tributação","Gestão de crises"],
+  "Economia":["Comércio","Finanças","Produção","Gestão de recursos","Desenvolvimento"],
+  "Segurança":["Estratégia militar","Tática","Inteligência","Contraespionagem","Logística"],
+  "Sociedade":["Opinião pública","Religião","Cultura","Propaganda","Gestão social"],
+  "Relações internacionais":["Negociação","Tratados","Mediação","Intimidação","Influência"]
+};
+
+var TIPOS_ORDEM = ["militar","diplomatica","economica","social","tecnologica","religiosa","administrativa","espionagem","comercial","infraestrutura"];
+
+var JANELA_FECHAMENTO_H = 20; // 20:00 local — fim da janela de ordens (RF-012)
+var JANELA_PROCESSAMENTO_H = 0; var JANELA_PROCESSAMENTO_M = 1; // 00:01 (RF-013)
+var LOCK_TTL_MS = 30000;
+
+/* =========================================================
+   FIRESTORE — armazenamento chave/valor genérico (coleção "kv")
+   Mesmo padrão comprovado da base "Mestre Solo": cada chave vira um
+   doc em kv/{chave-codificada}, valor serializado em JSON.
+   Namespaces de chave (RF-033):
+     campaign:{id}                      -> dados da campanha
+     country:{campaignId}:{countryId}   -> ficha do país
+     leader:{campaignId}:{email}        -> ficha do chefe de estado
+     orders:{campaignId}:{countryId}:{turno} -> ordens do turno
+     turn:{campaignId}:{turno}          -> estado de processamento do turno
+     diplomacy:{campaignId}             -> lista de propostas/tratados
+     events:{campaignId}                -> linha do tempo (event log)
+     messages:{campaignId}:{countryId}  -> chat com o Conselho/Mestre
+   ========================================================= */
+function fbReady(){ return !!(window.__fb && window.__fb.db); }
+function docIdFor(key){ return encodeURIComponent(key).replace(/\./g,"%2E"); }
+
+async function fsGet(key){
+  if(!fbReady()) return null;
+  var fb = window.__fb;
+  try{
+    var ref = fb.doc(fb.db, "kv", docIdFor(key));
+    var snap = await fb.getDoc(ref);
+    if(!snap.exists()) return null;
+    var d = snap.data();
+    if(d && typeof d.json==="string"){ try{ return JSON.parse(d.json); }catch(e){ return null; } }
+    return null;
+  }catch(e){ console.warn("fsGet falhou ("+key+")", e.message); return null; }
+}
+async function fsPut(key, value){
+  if(!fbReady()) return false;
+  var fb = window.__fb;
+  try{
+    var ref = fb.doc(fb.db, "kv", docIdFor(key));
+    if(value===null||value===undefined){ await fb.deleteDoc(ref); return true; }
+    await fb.setDoc(ref, { json: JSON.stringify(value), key:key, updatedAt: Date.now(), owner: session.email||null });
+    return true;
+  }catch(e){ console.warn("fsPut falhou ("+key+")", e.message); return false; }
+}
+async function fsList(prefix){
+  if(!fbReady()) return [];
+  var fb = window.__fb;
+  try{
+    var snaps = await fb.getDocs(fb.collection(fb.db,"kv"));
+    var out = [];
+    snaps.forEach(function(d){
+      var data = d.data();
+      var k = (data && data.key) || decodeURIComponent(d.id);
+      if(!prefix || k.indexOf(prefix)===0) out.push({key:k, value: (data && typeof data.json==="string") ? (function(){try{return JSON.parse(data.json);}catch(e){return null;}})() : null});
+    });
+    return out;
+  }catch(e){ console.warn("fsList falhou", e.message); return []; }
+}
+/* Atualização transacional — usada pelo motor de turno para evitar dupla
+   execução (RF-035 idempotência) e conflitos de escrita concorrente. */
+async function fsTransactionUpdate(keys, updater){
+  if(!fbReady()) throw new Error("Firestore indisponível.");
+  var fb = window.__fb;
+  var refs = {};
+  keys.forEach(function(k){ refs[k] = fb.doc(fb.db,"kv",docIdFor(k)); });
+  return await fb.runTransaction(fb.db, async function(tx){
+    var atual = {};
+    for(var i=0;i<keys.length;i++){
+      var k = keys[i];
+      var snap = await tx.get(refs[k]);
+      if(!snap.exists()){ atual[k]=null; continue; }
+      var d = snap.data();
+      atual[k] = (d && typeof d.json==="string") ? (function(){try{return JSON.parse(d.json);}catch(e){return null;}})() : null;
+    }
+    var out = await updater(atual);
+    Object.keys(out||{}).forEach(function(k){
+      if(refs[k]===undefined) throw new Error("chave fora da lista de leitura: "+k);
+      var val = out[k];
+      if(val===null||val===undefined){ tx.delete(refs[k]); return; }
+      tx.set(refs[k], { json: JSON.stringify(val), key:k, updatedAt: Date.now(), owner: session.email||null });
+    });
+    return out;
+  });
+}
+function fsListen(key, onChange){
+  if(!fbReady()) return null;
+  var fb = window.__fb;
+  try{
+    var ref = fb.doc(fb.db, "kv", docIdFor(key));
+    return fb.onSnapshot(ref, function(snap){
+      var valor = null;
+      if(snap.exists()){
+        var d = snap.data();
+        if(d && typeof d.json==="string"){ try{ valor = JSON.parse(d.json); }catch(e){ valor=null; } }
+      }
+      if(onChange) onChange(valor);
+    }, function(err){ console.warn("listener falhou ("+key+")", err && err.message); });
+  }catch(e){ return null; }
+}
+
+/* Lock simples baseado em transação — impede duas execuções simultâneas
+   do motor de resolução (equivalente ao lock do Mestre na base original). */
+async function acquireLock(key){
+  try{
+    var res = await fsTransactionUpdate([key], function(atual){
+      var cur = atual[key];
+      var now = Date.now();
+      if(cur && cur.lockedAt && (now - cur.lockedAt) < LOCK_TTL_MS) throw new Error("LOCKED");
+      var out = {}; out[key] = {lockedAt:now, by:(session.email||"?")};
+      return out;
+    });
+    return true;
+  }catch(e){ return false; }
+}
+async function releaseLock(key){ await fsPut(key, null); }
+
+/* =========================================================
+   CHAMADA AO GEMINI — narrador/conselho (RF-038, RF-039, RF-045)
+   IMPORTANTE (RF-045): a IA NUNCA decide os números estruturais.
+   Ela só narra o que o motor determinístico já calculou. As funções
+   de resolução (mais abaixo) sempre calculam antes de chamar a IA.
+   ========================================================= */
+var DEFAULT_MODEL = "gemini-2.5-flash";
+function apiBase(){ return "https://generativelanguage.googleapis.com"; }
+async function callGemini(systemText, userText, opts){
+  opts = opts || {};
+  var model = opts.model || session.model || DEFAULT_MODEL;
+  var url = apiBase()+"/v1beta/models/"+model+":generateContent";
+  var body = {
+    systemInstruction: { parts:[{text:systemText}] },
+    contents: [{ role:"user", parts:[{text:userText}] }],
+    generationConfig: { temperature: opts.temperature!==undefined?opts.temperature:0.9, maxOutputTokens: opts.maxTokens||1400 }
+  };
+  var res = await fetch(url, {
+    method:"POST",
+    headers:{ "x-goog-api-key": session.apiKey, "Content-Type":"application/json" },
+    body: JSON.stringify(body)
+  });
+  if(!res.ok){
+    var errText = "Erro na chamada ao Gemini ("+res.status+")";
+    try{ var j = await res.json(); if(j && j.error && j.error.message) errText = j.error.message; }catch(e){}
+    throw new Error(errText);
+  }
+  var data = await res.json();
+  var cand = data && data.candidates && data.candidates[0];
+  var text = cand && cand.content && cand.content.parts && cand.content.parts.map(function(p){return p.text||"";}).join("") || "";
+  return text.trim();
+}
+
+/* =========================================================
+   SESSÃO / AUTENTICAÇÃO
+   ========================================================= */
+var session = { email:null, name:null, apiKey:null, model:DEFAULT_MODEL };
+var state = {
+  campaign:null, campaignId:null, myCountryId:null, myLeader:null, myCountry:null,
+  countries:{}, turnKey:null, tickTimer:null
+};
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function showView(name){
+  document.querySelectorAll(".view").forEach(function(v){ v.classList.remove("active"); });
+  el("view-"+name).classList.add("active");
+}
+function toast(msg, ms){
+  var t = document.createElement("div"); t.className="roll-toast"; t.textContent = msg;
+  el("toast-root").appendChild(t);
+  setTimeout(function(){ t.remove(); }, ms||3200);
+}
+function keyStoreId(email){ return "diplomacia-gemini-key:"+String(email||"").toLowerCase(); }
+function savedKeyFor(email){ try{ return localStorage.getItem(keyStoreId(email)); }catch(e){ return null; } }
+function saveKeyFor(email,key){ try{ localStorage.setItem(keyStoreId(email), key); }catch(e){} }
+
+async function initAuth(){
+  function reflectBackend(){
+    var b = el("backend-badge");
+    if(fbReady()){ b.textContent = "🔒 Conectado ao Firestore · projeto "+window.FIREBASE_CONFIG.projectId; el("auth-unavailable").classList.add("hidden"); el("google-auth").classList.remove("hidden"); }
+    else { b.textContent = "⚠️ Firebase não configurado — dados não serão salvos."; el("auth-unavailable").classList.remove("hidden"); }
+  }
+  if(window.__fb) reflectBackend(); else window.addEventListener("firebase-ready", reflectBackend);
+
+  el("google-signin").addEventListener("click", async function(){
+    if(!fbReady()){ toast("Firebase não configurado."); return; }
+    try{
+      var fb = window.__fb;
+      var provider = new fb.GoogleAuthProvider();
+      var cred = await fb.signInWithPopup(fb.auth, provider);
+      var u = cred.user;
+      session.email = (u.email||"").toLowerCase(); session.name = u.displayName || u.email;
+      var saved = savedKeyFor(session.email);
+      if(saved){ session.apiKey = saved; await enterHub(); }
+      else{ el("google-auth").classList.add("hidden"); el("key-step").classList.remove("hidden"); }
+    }catch(e){ el("auth-error").textContent = e.message||String(e); el("auth-error").classList.remove("hidden"); }
+  });
+  el("ks-start").addEventListener("click", async function(){
+    var k = el("ks-key").value.trim();
+    if(!k){ toast("Cole sua chave do Gemini."); return; }
+    session.apiKey = k; saveKeyFor(session.email, k);
+    await enterHub();
+  });
+  el("ks-key-toggle").addEventListener("click", function(){
+    var i = el("ks-key"); i.type = i.type==="password" ? "text":"password";
+  });
+
+  if(fbReady()){
+    window.__fb.onAuthStateChanged(window.__fb.auth, function(u){
+      if(u && !session.email){
+        session.email = (u.email||"").toLowerCase(); session.name = u.displayName||u.email;
+        var saved = savedKeyFor(session.email);
+        if(saved){ session.apiKey = saved; enterHub(); }
+      }
+    });
+  }
+}
+
+async function logout(){
+  try{ if(fbReady()) await window.__fb.signOut(window.__fb.auth); }catch(e){}
+  session = { email:null, name:null, apiKey:null, model:DEFAULT_MODEL };
+  showView("auth");
+}
+
+/* =========================================================
+   D20 — RF-020: teste = 1d20 + modificador vs CD
+   4 graus: sucesso crítico / sucesso / fracasso / fracasso crítico
+   ========================================================= */
+function rollD20(){ return 1 + Math.floor(Math.random()*20); }
+function attrMod(score){ return Math.floor((score-10)/2); }
+function d20Test(attrScore, cd){
+  var roll = rollD20();
+  var mod = attrMod(attrScore);
+  var total = roll + mod;
+  var grau = "fracasso";
+  if(roll===20 || total >= cd+10) grau = "sucesso critico";
+  else if(roll===1 || total <= cd-10) grau = "fracasso critico";
+  else if(total >= cd) grau = "sucesso";
+  return {roll:roll, mod:mod, total:total, cd:cd, grau:grau};
+}
+
+/* =========================================================
+   HUB — lista e criação de campanhas
+   ========================================================= */
+async function enterHub(){
+  el("hub-user-email").textContent = session.name || session.email;
+  showView("hub");
+  await refreshHubCampaigns();
+}
+async function refreshHubCampaigns(){
+  var box = el("hub-camp-list");
+  box.innerHTML = "<p class='empty-note'>Carregando…</p>";
+  var all = await fsList("campaign:");
+  var mine = all.map(function(r){return r.value;}).filter(function(c){
+    return c && Array.isArray(c.members) && c.members.indexOf(session.email)!==-1;
+  }).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+  if(!mine.length){ box.innerHTML = "<p class='empty-note'>Nenhuma campanha ainda. Funde seu primeiro reino acima.</p>"; return; }
+  box.innerHTML = "";
+  mine.forEach(function(c){
+    var d = document.createElement("div"); d.className="camp-card";
+    var per = PERIODOS[c.periodoHistorico];
+    d.innerHTML = "<div><div class='cc-name'>"+esc(c.name)+"</div>"+
+      "<div class='cc-sub'>"+esc(per?per.label:c.periodoHistorico)+" · "+esc(c.dataAtual||"")+" · "+(c.mode==="grupo"?"Grupo ("+c.members.length+" chefes)":"Solo")+"</div></div>"+
+      "<span class='cc-badge "+(c.status==="ativa"?"open":"closed")+"'>"+esc(c.status||"ativa")+"</span>";
+    d.addEventListener("click", function(){ enterCampaign(c.id); });
+    box.appendChild(d);
+  });
+}
+var wizardMode = "solo";
+el("hub-new-solo").addEventListener("click", function(){ wizardMode="solo"; openWizard(); });
+el("hub-new-group").addEventListener("click", function(){ wizardMode="grupo"; openWizard(); });
+el("hub-logout").addEventListener("click", logout);
+el("hub-key").addEventListener("click", function(){
+  var novo = prompt("Nova chave de API do Gemini:", session.apiKey||"");
+  if(novo){ session.apiKey = novo.trim(); saveKeyFor(session.email, session.apiKey); toast("Chave atualizada."); }
+});
+
+/* =========================================================
+   WIZARD — RF-001 (período), RF-003 (chefe), RF-005 (país)
+   ========================================================= */
+var wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[] };
+var WZ_POINTS_TOTAL = 6;
+
+function openWizard(){
+  wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[] };
+  el("wizard-title").textContent = wizardMode==="grupo" ? "Fundar campanha em grupo" : "Fundar reino (solo)";
+  el("wz-invite-field").classList.toggle("hidden", wizardMode!=="grupo");
+  el("wz-invites").innerHTML = "";
+  renderPeriodGrid();
+  renderAttrGrid();
+  wzGoStep(1);
+  showView("wizard");
+}
+el("wizard-back").addEventListener("click", function(){ showView("hub"); refreshHubCampaigns(); });
+
+function renderPeriodGrid(){
+  var grid = el("period-grid"); grid.innerHTML = "";
+  Object.keys(PERIODOS).forEach(function(key){
+    var p = PERIODOS[key];
+    var d = document.createElement("div"); d.className="period-card"+(wz.periodo===key?" selected":"");
+    d.innerHTML = "<b>"+p.label+"</b><div class='yr'>"+p.faixa+"</div><p>"+p.desc+"</p>";
+    d.addEventListener("click", function(){ wz.periodo = key; renderPeriodGrid(); el("wz-to-2").disabled = !(wz.periodo && el("wz-camp-name").value.trim()); });
+    grid.appendChild(d);
+  });
+}
+el("wz-camp-name").addEventListener("input", function(){ el("wz-to-2").disabled = !(wz.periodo && el("wz-camp-name").value.trim()); });
+el("wz-add-invite").addEventListener("click", function(){
+  var row = document.createElement("div"); row.className="input-with-btn"; row.style.marginBottom="6px";
+  row.innerHTML = "<input class='text-input wz-invite-input' placeholder='email@exemplo.com'><button type='button' class='ghost-btn'>×</button>";
+  row.querySelector("button").addEventListener("click", function(){ row.remove(); });
+  el("wz-invites").appendChild(row);
+});
+
+function renderAttrGrid(){
+  var grid = el("attr-grid"); grid.innerHTML = "";
+  ATRIBUTOS.forEach(function(a){
+    var box = document.createElement("div"); box.className="attr-box";
+    box.innerHTML = "<div class='al'>"+a.nome+"</div><div class='av' id='av-"+a.key+"'></div><div class='ap'>"+a.app+"</div>"+
+      "<div class='stepper'><button type='button' data-op='-' data-k='"+a.key+"'>−</button><button type='button' data-op='+' data-k='"+a.key+"'>+</button></div>";
+    grid.appendChild(box);
+  });
+  grid.querySelectorAll("button[data-k]").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var k = btn.getAttribute("data-k"), op = btn.getAttribute("data-op");
+      var used = Object.keys(wz.atributos).reduce(function(s,kk){return s+(wz.atributos[kk]-10);},0);
+      if(op==="+"){ if(used>=WZ_POINTS_TOTAL || wz.atributos[k]>=18) return; wz.atributos[k]++; }
+      else{ if(wz.atributos[k]<=8) return; wz.atributos[k]--; }
+      renderAttrValues();
+    });
+  });
+  renderAttrValues();
+}
+function renderAttrValues(){
+  ATRIBUTOS.forEach(function(a){
+    var elv = el("av-"+a.key);
+    if(elv) elv.textContent = wz.atributos[a.key] + " ("+fmtMod(attrMod(wz.atributos[a.key]))+")";
+  });
+  var used = Object.keys(wz.atributos).reduce(function(s,kk){return s+(wz.atributos[kk]-10);},0);
+  el("attr-points-left").textContent = "Pontos restantes: "+(WZ_POINTS_TOTAL-used);
+}
+function fmtMod(n){ return (n>=0?"+":"")+n; }
+
+function wzGoStep(n){
+  [1,2,3].forEach(function(i){
+    el("wz-panel-"+i).classList.toggle("hidden", i!==n);
+    el("wz-step-"+i).classList.toggle("active", i===n);
+    el("wz-step-"+i).classList.toggle("done", i<n);
+  });
+  el("wizard-sub").textContent = "Passo "+n+" de 3";
+}
+el("wz-to-2").addEventListener("click", function(){ wzGoStep(2); });
+el("wz-to-1b").addEventListener("click", function(){ wzGoStep(1); });
+el("wz-to-2b").addEventListener("click", function(){ wzGoStep(2); });
+el("wz-to-3").addEventListener("click", function(){
+  populateGovernoSelect();
+  wzGoStep(3);
+});
+function populateGovernoSelect(){
+  var sel = el("pais-governo"); sel.innerHTML = "";
+  (PERIODOS[wz.periodo].governos||[]).forEach(function(g){
+    var o = document.createElement("option"); o.value=g; o.textContent=g; sel.appendChild(o);
+  });
+}
+
+/* =========================================================
+   MOTOR — geração determinística do estado inicial do país
+   (RF-005/RF-025/RF-026/RF-006). A IA não participa disto: os
+   números de partida vêm só do período histórico + população.
+   ========================================================= */
+function gerarPaisInicial(periodoKey, nomePais, capital, governo, populacao, descricaoLivre){
+  var per = PERIODOS[periodoKey];
+  var pop = Math.max(10000, Math.round(populacao)||500000);
+  var tesouro = Math.round(per.tesouroBase * (pop/500000));
+  var receita = Math.round(tesouro*0.12);
+  var despesas = Math.round(receita*0.85);
+  return {
+    nome: nomePais, capital: capital, governo: governo, descricaoLivre: descricaoLivre||"",
+    populacaoTotal: pop,
+    populacaoGrupos: gerarGruposPopulacionais(pop, periodoKey),
+    territorio: { cidades:[capital], regioes:[] },
+    tesouro: tesouro, receita: receita, despesas: despesas, divida:0, inflacao:2,
+    producao: Math.round(per.producaoBase*100), consumo: Math.round(per.producaoBase*95), comercio: 50,
+    importacoes:[], exportacoes:[], recursosEstrategicos:[],
+    exercito: { efetivo: Math.round(pop*0.01), treinamento:50, moral:70, equipamento:50, tecnologia:per.tecNivel*20, logistica:50, comando:"Chefe de Estado" },
+    marinha: { efetivo: Math.round(pop*0.002), tecnologia:per.tecNivel*20 },
+    tecnologia: per.tecNivel*20,
+    estabilidade:65, legitimidade:70, felicidade:60, pobreza:35, educacao:30, saude:30,
+    religiao:"não definida", cultura:"não definida", infraestrutura:35,
+    periodoHistorico: periodoKey
+  };
+}
+function gerarGruposPopulacionais(pop, periodoKey){
+  var perfis = {
+    antiguidade:[["Camponeses",70],["Artesãos",8],["Comerciantes",5],["Clero",4],["Nobreza",2],["Soldados",4],["Escravos",5],["Outros",2]],
+    medieval:[["Camponeses",68],["Artesãos",11],["Comerciantes",7],["Clero",4],["Nobreza",2],["Soldados",3],["Outros",5]],
+    moderna:[["Camponeses",45],["Artesãos/Operários",20],["Comerciantes",15],["Clero",3],["Nobreza",2],["Soldados",4],["Burguesia",6],["Outros",5]],
+    contemporanea:[["Classe trabalhadora",40],["Classe média",35],["Elite econômica",5],["Militares",3],["Funcionalismo público",7],["Agricultores",5],["Outros",5]]
+  };
+  var perfil = perfis[periodoKey] || perfis.medieval;
+  return perfil.map(function(g){
+    return { grupo:g[0], percentual:g[1], populacao: Math.round(pop*g[1]/100),
+      riqueza:50, satisfacao:60, apoioGoverno:60, propensaoRevolta:15, interesses:[] };
+  });
+}
+
+el("wz-finish").addEventListener("click", async function(){
+  var nome = el("pais-nome").value.trim();
+  var capital = el("pais-capital").value.trim();
+  var governo = el("pais-governo").value;
+  var pop = parseInt(el("pais-pop").value,10);
+  var chefeNome = el("chefe-nome").value.trim();
+  if(!nome || !capital || !pop || !chefeNome){
+    el("wz-error").textContent = "Preencha ao menos: nome do chefe, nome do país, capital e população."; el("wz-error").classList.remove("hidden"); return;
+  }
+  el("wz-error").classList.add("hidden");
+  el("wz-finish").disabled = true; el("wz-finish").textContent = "Fundando reino…";
+  try{
+    var campaignId = "camp_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
+    var countryId = "pais_"+Math.random().toString(36).slice(2,8);
+    var per = PERIODOS[wz.periodo];
+    var anoInicial = per.anoDefault;
+    var dataAtual = fmtDataJogo(anoInicial, 1);
+
+    var invites = Array.from(document.querySelectorAll(".wz-invite-input")).map(function(i){return i.value.trim().toLowerCase();}).filter(Boolean);
+    var members = [session.email].concat(invites.filter(function(e){return e!==session.email;}));
+
+    var campaign = {
+      id: campaignId, name: el("wz-camp-name").value.trim() || (nome+" e vizinhos"),
+      mode: wizardMode, periodoHistorico: wz.periodo, anoInicial: anoInicial,
+      dataAtual: dataAtual, unidadeTemporal:"mes", status:"ativa",
+      ownerEmail: session.email, members: members,
+      countryOfMember: {}, aiCountries: [],
+      cicloInicio: Date.now(), // usado para calcular a virada diária de turno (RF-011)
+      createdAt: Date.now(), updatedAt: Date.now()
+    };
+    campaign.countryOfMember[session.email] = countryId;
+
+    var pais = gerarPaisInicial(wz.periodo, nome, capital, governo, pop, el("pais-desc").value.trim());
+    var chefe = {
+      nome: chefeNome, titulo: el("chefe-titulo").value.trim()||"Chefe de Estado",
+      dinastia: el("chefe-dinastia").value.trim(), legitimidadeOrigem: el("chefe-legitimidade").value,
+      pais: capital, countryId: countryId, atributos: Object.assign({}, wz.atributos),
+      pericias: [], vivo:true, email: session.email
+    };
+
+    await fsPut("campaign:"+campaignId, campaign);
+    await fsPut("country:"+campaignId+":"+countryId, pais);
+    await fsPut("leader:"+campaignId+":"+session.email, chefe);
+    await fsPut("events:"+campaignId, [{ turno:dataAtual, texto: nome+" é fundado sob o governo de "+chefeNome+" ("+governo+").", tipo:"fundacao", ts:Date.now() }]);
+    await fsPut("orders:"+campaignId+":"+countryId+":"+dataAtual, []);
+    await fsPut("diplomacy:"+campaignId, []);
+    await fsPut("turn:"+campaignId+":"+dataAtual, { status:"ABERTO", createdAt:Date.now() });
+
+    toast("Reino fundado! Bem-vindo ao trono.");
+    await enterCampaign(campaignId);
+  }catch(e){
+    el("wz-error").textContent = "Erro ao criar campanha: "+(e.message||e); el("wz-error").classList.remove("hidden");
+  }finally{
+    el("wz-finish").disabled = false; el("wz-finish").textContent = "Fundar reino e começar";
+  }
+});
+
+/* Mapeia (anoInicial, offsetMeses) -> string "AAAA-MM" (ou "-AAAA-MM" p/ a.C.) */
+function fmtDataJogo(anoInicial, offsetMeses){
+  var totalMeses = (anoInicial<0? anoInicial+1 : anoInicial)*12 + (offsetMeses-1);
+  var ano = Math.floor(totalMeses/12);
+  var mes = ((totalMeses%12)+12)%12 + 1;
+  var anoLabel = ano<0 ? (Math.abs(ano)+1)+" a.C." : ano+"";
+  var mesLabel = String(mes).padStart(2,"0");
+  return anoLabel+"-"+mesLabel;
+}
+
+/* =========================================================
+   CAMPANHA — entrar, carregar estado, abas do painel
+   ========================================================= */
+async function enterCampaign(campaignId){
+  state.campaignId = campaignId;
+  state.campaign = await fsGet("campaign:"+campaignId);
+  if(!state.campaign){ toast("Campanha não encontrada."); showView("hub"); return; }
+  state.myCountryId = state.campaign.countryOfMember[session.email];
+  state.myLeader = await fsGet("leader:"+campaignId+":"+session.email);
+  await refreshCountriesIndex();
+  state.myCountry = state.countries[state.myCountryId];
+
+  el("game-title").textContent = state.campaign.name;
+  var per = PERIODOS[state.campaign.periodoHistorico];
+  el("game-subtitle").textContent = per.label+" · "+state.campaign.dataAtual+" · "+(state.campaign.mode==="grupo"?"grupo":"solo");
+  el("game-invite").classList.toggle("hidden", state.campaign.mode!=="grupo" || state.campaign.ownerEmail!==session.email);
+
+  showView("game");
+  switchGameTab("pais");
+  renderPaisPanel();
+  renderOrdensTab();
+  renderDiplomaciaTab();
+  renderMundoPanel();
+  renderHistoricoPanel();
+  await loadChat();
+
+  if(state.tickTimer) clearInterval(state.tickTimer);
+  if(state.campaign.mode==="grupo"){
+    checkAndAdvanceTurn();
+    state.tickTimer = setInterval(checkAndAdvanceTurn, 45000);
+  }
+}
+async function refreshCountriesIndex(){
+  var rows = await fsList("country:"+state.campaignId+":");
+  state.countries = {};
+  rows.forEach(function(r){
+    var countryId = r.key.split(":").pop();
+    state.countries[countryId] = r.value;
+  });
+}
+el("game-back").addEventListener("click", function(){
+  if(state.tickTimer){ clearInterval(state.tickTimer); state.tickTimer=null; }
+  showView("hub"); refreshHubCampaigns();
+});
+el("game-invite").addEventListener("click", async function(){
+  var email = prompt("E-mail do novo Chefe de Estado a convidar:");
+  if(!email) return;
+  email = email.trim().toLowerCase();
+  var camp = state.campaign;
+  if(camp.members.indexOf(email)===-1) camp.members.push(email);
+  camp.updatedAt = Date.now();
+  await fsPut("campaign:"+state.campaignId, camp);
+  toast("Convite registrado — quando "+email+" entrar, poderá fundar o país dele nesta campanha.");
+});
+
+document.querySelectorAll("#tabbar button").forEach(function(btn){
+  btn.addEventListener("click", function(){ switchGameTab(btn.getAttribute("data-tab")); });
+});
+function switchGameTab(name){
+  document.querySelectorAll("#tabbar button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===name); });
+  document.querySelectorAll(".gtab").forEach(function(t){ t.classList.remove("active"); });
+  el("gtab-"+name).classList.add("active");
+  if(name==="pais") renderPaisPanel();
+  if(name==="ordens") renderOrdensTab();
+  if(name==="diplomacia") renderDiplomaciaTab();
+  if(name==="mundo") renderMundoPanel();
+  if(name==="historico") renderHistoricoPanel();
+}
+
+/* ---- Painel do País (RF-005 / RF-021) ---- */
+function renderPaisPanel(){
+  var c = state.myCountry; var chefe = state.myLeader;
+  if(!c){ el("pais-panel-content").innerHTML = "<p class='empty-note'>País não encontrado.</p>"; return; }
+  var html = "";
+  html += "<div class='stat-panel'><h3>"+esc(c.nome)+" — "+esc(c.governo)+"</h3>";
+  html += "<div class='stat-grid'>"+
+    statItem("Capital", c.capital)+
+    statItem("População", fmtNum(c.populacaoTotal))+
+    statItem("Tesouro", fmtNum(c.tesouro)+" moedas")+
+    statItem("Receita/Despesas", fmtNum(c.receita)+" / "+fmtNum(c.despesas))+
+    statItem("Estabilidade", c.estabilidade+"%")+
+    statItem("Legitimidade", c.legitimidade+"%")+
+    statItem("Felicidade", c.felicidade+"%")+
+    statItem("Pobreza", c.pobreza+"%")+
+    statItem("Tecnologia", c.tecnologia)+
+    statItem("Infraestrutura", c.infraestrutura+"%")+
+    statItem("Exército", fmtNum(c.exercito.efetivo)+" soldados")+
+    statItem("Moral das tropas", c.exercito.moral+"%")+
+    "</div></div>";
+
+  html += "<div class='stat-panel'><h3>Chefe de Estado</h3><div class='stat-grid'>"+
+    statItem("Nome", chefe.nome)+statItem("Título", chefe.titulo)+statItem("Legitimidade de origem", chefe.legitimidadeOrigem)+
+    "</div><div class='badge-row'>";
+  ATRIBUTOS.forEach(function(a){ html += "<span class='mini-badge'>"+a.nome+" "+chefe.atributos[a.key]+" ("+fmtMod(attrMod(chefe.atributos[a.key]))+")</span>"; });
+  html += "</div></div>";
+
+  html += "<div class='stat-panel'><h3>População (RF-006)</h3>";
+  (c.populacaoGrupos||[]).forEach(function(g){
+    html += "<div class='pop-row'><span>"+esc(g.grupo)+" — "+g.percentual+"% ("+fmtNum(g.populacao)+")</span>"+
+      "<span>satisfação "+g.satisfacao+"% · apoio "+g.apoioGoverno+"%</span></div>";
+  });
+  html += "</div>";
+  el("pais-panel-content").innerHTML = html;
+}
+function statItem(label, val){ return "<div class='stat-item'><div class='sl'>"+esc(label)+"</div><div class='sv'>"+esc(val)+"</div></div>"; }
+function fmtNum(n){ n = Math.round(n||0); return n.toLocaleString("pt-BR"); }
+
+/* ---- Ordens (RF-015 / RF-016) ---- */
+function currentTurnKey(){ return state.campaign.dataAtual; }
+async function renderOrdensTab(){
+  var camp = state.campaign;
+  var turno = await fsGet("turn:"+state.campaignId+":"+currentTurnKey());
+  var statusTxt = { ABERTO:"Aberto para ordens", FECHADO:"Ordens encerradas — aguardando processamento", PROCESSANDO:"Processando o mês…", RESOLVIDO:"Resolvido", PUBLICADO:"Publicado" };
+  var banner = el("turn-banner-ordens");
+  if(camp.mode==="solo"){
+    banner.innerHTML = "<div><div class='tb-date'>"+currentTurnKey()+"</div><div class='tb-sub'>Modo solo — avance quando quiser</div></div>"+
+      "<button class='primary-btn' id='btn-avancar-solo'>Avançar mês →</button>";
+    el("btn-avancar-solo").addEventListener("click", function(){ resolverTurno(state.campaignId, currentTurnKey()).then(function(){ toast("Mês avançado."); enterCampaign(state.campaignId); }); });
+  } else {
+    banner.innerHTML = "<div><div class='tb-date'>"+currentTurnKey()+"</div><div class='tb-sub'>Ordens até 20:00 · resolução às 00:01</div></div>"+
+      "<span class='tb-status'>"+(statusTxt[(turno&&turno.status)||"ABERTO"])+"</span>";
+  }
+  var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
+  var ordens = (await fsGet(ordersKey)) || [];
+  var list = el("ordens-list"); list.innerHTML = "";
+  if(!ordens.length){ list.innerHTML = "<p class='empty-note'>Nenhuma ordem enviada para este mês ainda.</p>"; }
+  ordens.forEach(function(o, idx){
+    var d = document.createElement("div"); d.className="order-list-item";
+    d.innerHTML = "<div><div class='ot'>"+esc(o.tipo)+(o.secreta?" <span class='secret-tag'>SECRETA</span>":"")+"</div><div class='oc'>"+esc(o.texto)+"</div></div>"+
+      "<button class='ghost-btn' data-idx='"+idx+"'>Remover</button>";
+    d.querySelector("button").addEventListener("click", async function(){
+      ordens.splice(idx,1); await fsPut(ordersKey, ordens); renderOrdensTab();
+    });
+    list.appendChild(d);
+  });
+}
+el("ord-add").addEventListener("click", async function(){
+  var texto = el("ord-texto").value.trim();
+  if(!texto){ toast("Descreva a ordem."); return; }
+  var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
+  var ordens = (await fsGet(ordersKey)) || [];
+  ordens.push({ tipo: el("ord-tipo").value, texto: texto, secreta: el("ord-secreta").checked, criadaEm: Date.now(), autor: session.email });
+  await fsPut(ordersKey, ordens);
+  el("ord-texto").value=""; el("ord-secreta").checked=false;
+  renderOrdensTab();
+  toast("Ordem registrada.");
+});
+
+/* ---- Diplomacia (RF-017 / RF-018) ---- */
+function renderDiplomaciaTab(){
+  var sel = el("diplo-alvo"); sel.innerHTML = "";
+  Object.keys(state.countries).forEach(function(cid){
+    if(cid===state.myCountryId) return;
+    var o = document.createElement("option"); o.value = cid; o.textContent = state.countries[cid].nome;
+    sel.appendChild(o);
+  });
+  loadDiplomacyList();
+}
+async function loadDiplomacyList(){
+  var props = (await fsGet("diplomacy:"+state.campaignId)) || [];
+  var mine = props.filter(function(p){ return p.fromCountry===state.myCountryId || p.toCountry===state.myCountryId; })
+    .sort(function(a,b){ return b.criadaEm-a.criadaEm; });
+  var box = el("diplo-list"); box.innerHTML = "";
+  if(!mine.length){ box.innerHTML = "<p class='empty-note'>Nenhuma negociação ainda.</p>"; return; }
+  mine.forEach(function(p){
+    var otherId = p.fromCountry===state.myCountryId ? p.toCountry : p.fromCountry;
+    var otherName = (state.countries[otherId]||{}).nome || "?";
+    var d = document.createElement("div"); d.className="diplo-card";
+    var canRespond = p.toCountry===state.myCountryId && p.status==="pendente";
+    d.innerHTML = "<div class='dc-top'><span>"+esc(p.tipo)+" · "+(p.fromCountry===state.myCountryId?"para ":"de ")+esc(otherName)+"</span><span class='dc-status "+p.status+"'>"+p.status+"</span></div>"+
+      "<div style='margin-top:6px;font-size:13px;'>"+esc(p.texto)+"</div>"+
+      (canRespond ? "<div class='card-actions'><button class='primary-btn' data-a='aceito'>Aceitar</button><button class='secondary-btn' data-a='recusado'>Recusar</button></div>" : "");
+    if(canRespond){
+      d.querySelectorAll("button[data-a]").forEach(function(btn){
+        btn.addEventListener("click", async function(){
+          var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
+          var target = all.filter(function(x){return x.id===p.id;})[0];
+          if(target){ target.status = btn.getAttribute("data-a"); target.respondidaEm = Date.now(); }
+          await fsPut("diplomacy:"+state.campaignId, all);
+          await appendEvent(state.campaignId, currentTurnKey(), (target.status==="aceito"?"Aceita":"Recusada")+": proposta de "+p.tipo+" entre "+esc(state.myCountry.nome)+" e "+esc(otherName)+".", "diplomacia");
+          loadDiplomacyList();
+        });
+      });
+    }
+    box.appendChild(d);
+  });
+}
+el("diplo-send").addEventListener("click", async function(){
+  var alvo = el("diplo-alvo").value; var texto = el("diplo-texto").value.trim();
+  if(!alvo || !texto){ toast("Escolha um destinatário e escreva os termos."); return; }
+  var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
+  all.push({ id:"d_"+Date.now().toString(36), fromCountry: state.myCountryId, toCountry: alvo,
+    tipo: el("diplo-tipo").value, texto: texto, status:"pendente", criadaEm: Date.now(), turno: currentTurnKey() });
+  await fsPut("diplomacy:"+state.campaignId, all);
+  el("diplo-texto").value="";
+  loadDiplomacyList();
+  toast("Proposta enviada — a negociação é assíncrona, o outro chefe responde quando entrar (RF-018).");
+});
+
+/* ---- Mundo (RF-019 fog of war simplificado) ---- */
+function renderMundoPanel(){
+  var html = "<div class='stat-panel'><h3>Países conhecidos</h3>";
+  Object.keys(state.countries).forEach(function(cid){
+    var c = state.countries[cid];
+    var mine = cid===state.myCountryId;
+    html += "<div class='pop-row'><span>"+(mine?"👑 ":"")+esc(c.nome)+" — "+esc(c.governo)+"</span>"+
+      "<span>"+(mine ? ("tesouro "+fmtNum(c.tesouro)) : "informação limitada (fog of war)")+"</span></div>";
+  });
+  html += "</div><p class='small-note'>No MVP atual, todo mundo vê o nome/governo dos outros países (nível de 'conhecimento público'). Inteligência militar/econômica detalhada de outros países (RF-019: confirmada / estimada / desconhecida / falsa) é um próximo passo — hoje só o Painel do seu próprio país mostra números exatos.</p>";
+  el("mundo-panel-content").innerHTML = html;
+}
+
+/* ---- Histórico / linha do tempo (RF-022 / RF-023) ---- */
+async function appendEvent(campaignId, turno, texto, tipo){
+  var events = (await fsGet("events:"+campaignId)) || [];
+  events.push({ turno:turno, texto:texto, tipo:tipo||"geral", ts:Date.now() });
+  await fsPut("events:"+campaignId, events);
+}
+async function renderHistoricoPanel(){
+  var events = (await fsGet("events:"+state.campaignId)) || [];
+  var byTurn = {};
+  events.forEach(function(e){ (byTurn[e.turno]=byTurn[e.turno]||[]).push(e); });
+  var turns = Object.keys(byTurn).sort();
+  var html = "";
+  turns.reverse().forEach(function(t){
+    html += "<div class='event-month'><h4>"+esc(t)+"</h4>";
+    byTurn[t].forEach(function(e){ html += "<div class='event-item'>"+esc(e.texto)+"</div>"; });
+    html += "</div>";
+  });
+  el("historico-panel-content").innerHTML = html || "<p class='empty-note'>Sem eventos ainda.</p>";
+}
+
+/* ---- Conselho / Mestre-narrador (RF-038 / RF-039) ---- */
+async function loadChat(){
+  var msgs = (await fsGet("messages:"+state.campaignId+":"+state.myCountryId)) || [];
+  renderChat(msgs);
+}
+function renderChat(msgs){
+  var box = el("chat-msgs"); box.innerHTML = "";
+  if(!msgs.length){
+    box.innerHTML = "<div class='msg gm'><span class='msg-tag'>Conselho Real</span>Majestade, o Conselho está reunido. Descreva sua vontade e traremos análise e recomendações antes de qualquer decisão virar ordem oficial.</div>";
+  }
+  msgs.forEach(function(m){
+    var d = document.createElement("div"); d.className="msg "+(m.role==="user"?"me":"gm");
+    d.innerHTML = (m.role!=="user" ? "<span class='msg-tag'>Conselho Real</span>" : "")+esc(m.texto);
+    box.appendChild(d);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+el("chat-form").addEventListener("submit", async function(ev){
+  ev.preventDefault();
+  var input = el("chat-input"); var texto = input.value.trim();
+  if(!texto) return;
+  input.value = "";
+  var key = "messages:"+state.campaignId+":"+state.myCountryId;
+  var msgs = (await fsGet(key)) || [];
+  msgs.push({role:"user", texto:texto, ts:Date.now()});
+  await fsPut(key, msgs);
+  renderChat(msgs);
+  if(!session.apiKey){ toast("Configure sua chave do Gemini para falar com o Conselho."); return; }
+  el("chat-send").disabled = true;
+  try{
+    var c = state.myCountry;
+    var sys = "Você é o Conselho Real de "+c.nome+" — ministros da Fazenda, da Guerra, das Relações Exteriores e do Interior, período "+PERIODOS[state.campaign.periodoHistorico].label+
+      ". Responda como conselheiros: dê análise, opiniões (podem discordar do Chefe de Estado) e sugestões. "+
+      "NUNCA declare mudanças de números de Estado (tesouro, população, exército etc.) — você só aconselha; quem decide os números é o motor do jogo, não você (RF-045). "+
+      "Estado atual: tesouro "+c.tesouro+", estabilidade "+c.estabilidade+"%, felicidade "+c.felicidade+"%, exército "+c.exercito.efetivo+" soldados. Responda em português, em 2-4 frases, tom de corte real.";
+    var resp = await callGemini(sys, texto);
+    msgs.push({role:"conselho", texto:resp, ts:Date.now()});
+    await fsPut(key, msgs);
+    renderChat(msgs);
+  }catch(e){ toast("Erro ao consultar o Conselho: "+(e.message||e)); }
+  finally{ el("chat-send").disabled = false; }
+});
+
+/* =========================================================
+   MOTOR DE RESOLUÇÃO DE TURNO — RF-013/RF-014/RF-024/RF-035/RF-045
+   Sequência: ORDENS -> VALIDAÇÃO -> MOTOR ECONÔMICO/POPULACIONAL/
+   MILITAR -> D20 -> CONSOLIDAÇÃO -> IA NARRA (a IA nunca decide números)
+   ========================================================= */
+var EFEITOS_ORDEM = {
+  economica:    function(c){ var g=Math.round(c.receita*0.10); c.tesouro+=g; c.estabilidade-=1; bumpPop(c,-3,-1); return "arrecadação ajustada (+"+g+" ao tesouro)"; },
+  militar:      function(c){ c.exercito.treinamento=clamp(c.exercito.treinamento+5); var custo=Math.round(c.tesouro*0.05); c.tesouro-=custo; return "treinamento militar reforçado (-"+custo+" do tesouro)"; },
+  social:       function(c){ c.felicidade=clamp(c.felicidade+4); var custo=Math.round(c.tesouro*0.03); c.tesouro-=custo; return "investimento social (-"+custo+")"; },
+  tecnologica:  function(c){ c.tecnologia+=3; var custo=Math.round(c.tesouro*0.08); c.tesouro-=custo; return "avanço tecnológico (-"+custo+")"; },
+  religiosa:    function(c){ c.estabilidade=clamp(c.estabilidade+2); c.felicidade=clamp(c.felicidade+1); return "medida religiosa aplicada"; },
+  administrativa:function(c){ c.estabilidade=clamp(c.estabilidade+3); c.legitimidade=clamp(c.legitimidade+2); return "reforma administrativa"; },
+  espionagem:   function(c){ return "operação de inteligência conduzida em sigilo"; },
+  comercial:    function(c){ c.comercio=clamp(c.comercio+5); var g=Math.round(c.receita*0.05); c.tesouro+=g; return "acordo comercial (+"+g+")"; },
+  infraestrutura:function(c){ c.infraestrutura=clamp(c.infraestrutura+4); var custo=Math.round(c.tesouro*0.06); c.tesouro-=custo; return "obra de infraestrutura (-"+custo+")"; },
+  diplomatica:  function(c){ return "esforço diplomático — ver aba Diplomacia"; }
+};
+function clamp(v,min,max){ min=min===undefined?0:min; max=max===undefined?100:max; return Math.max(min,Math.min(max,Math.round(v))); }
+function bumpPop(c, satisfDelta, apoioDelta){
+  (c.populacaoGrupos||[]).forEach(function(g){ g.satisfacao=clamp(g.satisfacao+satisfDelta); g.apoioGoverno=clamp(g.apoioGoverno+apoioDelta); g.propensaoRevolta=clamp(g.propensaoRevolta-satisfDelta,0,100); });
+}
+function derivaDeFundo(c){
+  // deriva mensal leve mesmo sem ordens: economia respira, população reage ao acumulado
+  c.tesouro += Math.round(c.receita - c.despesas);
+  c.receita = Math.round(c.receita*(1+(c.comercio-50)/2000));
+  c.estabilidade = clamp(c.estabilidade + (c.felicidade>60?1:-1));
+}
+
+async function resolverTurno(campaignId, turnoAtual){
+  var lockKey = "turnlock:"+campaignId;
+  var got = await acquireLock(lockKey);
+  if(!got){ toast("Já há uma resolução em andamento."); return; }
+  try{
+    var turnoDoc = (await fsGet("turn:"+campaignId+":"+turnoAtual)) || {status:"ABERTO"};
+    if(turnoDoc.status==="RESOLVIDO" || turnoDoc.status==="PUBLICADO"){ return; } // idempotência (RF-035)
+    await fsPut("turn:"+campaignId+":"+turnoAtual, Object.assign({}, turnoDoc, {status:"PROCESSANDO", processandoDesde:Date.now()}));
+
+    var campaign = await fsGet("campaign:"+campaignId);
+    await refreshCountriesIndexFor(campaignId);
+    var countryIds = Object.keys(state.countries);
+    var resumosPorPais = {};
+
+    for(var i=0;i<countryIds.length;i++){
+      var cid = countryIds[i];
+      var c = state.countries[cid];
+      derivaDeFundo(c);
+      var ordersKey = "orders:"+campaignId+":"+cid+":"+turnoAtual;
+      var ordens = (await fsGet(ordersKey)) || [];
+      var resumos = [];
+      ordens.forEach(function(o){
+        var teste = d20Test(14, 12); // CD base 12; atributo 14 como aproximação de "governo competente"
+        var fn = EFEITOS_ORDEM[o.tipo] || EFEITOS_ORDEM.administrativa;
+        var linha = fn(c);
+        if(teste.grau==="fracasso critico"){ c.estabilidade=clamp(c.estabilidade-4); linha += " — execução falhou gravemente (1 natural)"; }
+        else if(teste.grau==="sucesso critico"){ c.estabilidade=clamp(c.estabilidade+2); linha += " — execução exemplar (20 natural)"; }
+        resumos.push({tipo:o.tipo, texto:o.texto, secreta:!!o.secreta, resultado:linha, teste:teste});
+      });
+      c.tesouro = Math.round(c.tesouro);
+      resumosPorPais[cid] = resumos;
+      await fsPut("country:"+campaignId+":"+cid, c);
+      await fsPut(ordersKey, []); // limpa ordens já processadas
+    }
+
+    // narrativa da IA — só narra o que já foi calculado (RF-045)
+    for(var j=0;j<countryIds.length;j++){
+      var cid2 = countryIds[j];
+      var c2 = state.countries[cid2];
+      var resumos2 = resumosPorPais[cid2].filter(function(r){return !r.secreta;});
+      var textoResumo = resumos2.length ? resumos2.map(function(r){return "- ("+r.tipo+") "+r.texto+" → "+r.resultado;}).join("\n") : "Nenhuma ordem enviada — o mês seguiu seu curso natural.";
+      var narrativa = textoResumo;
+      if(session.apiKey){
+        try{
+          var sys = "Você é o narrador de um simulador político (RPG D20 de chefes de Estado), período "+PERIODOS[campaign.periodoHistorico].label+". "+
+            "Narre em português, em UM parágrafo curto (3-5 frases), o mês de "+c2.nome+" com base EXATAMENTE nos fatos abaixo — não invente números novos, apenas dê contexto e cor histórica aos números já decididos.";
+          narrativa = await callGemini(sys, "País: "+c2.nome+"\nFatos do mês:\n"+textoResumo+"\nTesouro atual: "+c2.tesouro+"\nEstabilidade: "+c2.estabilidade+"%");
+        }catch(e){ /* segue com o resumo cru se a IA falhar */ }
+      }
+      await appendEvent(campaignId, turnoAtual, narrativa, "resolucao");
+    }
+
+    // avança para o próximo mês
+    var proximaData = proximoMes(campaign.anoInicial, campaign.dataAtual);
+    campaign.dataAtual = proximaData; campaign.updatedAt = Date.now();
+    await fsPut("campaign:"+campaignId, campaign);
+    await fsPut("turn:"+campaignId+":"+turnoAtual, {status:"PUBLICADO", processandoDesde:turnoDoc.processandoDesde, resolvidoEm:Date.now()});
+    await fsPut("turn:"+campaignId+":"+proximaData, {status:"ABERTO", createdAt:Date.now()});
+    countryIds.forEach(function(cid){ fsPut("orders:"+campaignId+":"+cid+":"+proximaData, []); });
+  } finally {
+    await releaseLock(lockKey);
+  }
+}
+async function refreshCountriesIndexFor(campaignId){
+  var rows = await fsList("country:"+campaignId+":");
+  state.countries = {};
+  rows.forEach(function(r){ state.countries[r.key.split(":").pop()] = r.value; });
+}
+function proximoMes(anoInicial, dataAtual){
+  // dataAtual está no formato usado por fmtDataJogo; recompõe o offset de meses percorridos
+  var m = /^(-?\d+)(?: a\.C\.)?-(\d{2})$/.exec(dataAtual) || /^(\d+)-(\d{2})$/.exec(dataAtual);
+  var negativo = /a\.C\./.test(dataAtual);
+  var ano = parseInt(m[1],10) * (negativo?-1:1);
+  var mes = parseInt(m[2],10);
+  var totalMeses = (ano<0? ano+1 : ano)*12 + (mes-1) + 1; // +1 mês
+  return fmtDataJogoFromTotal(totalMeses);
+}
+function fmtDataJogoFromTotal(totalMeses){
+  var ano = Math.floor(totalMeses/12);
+  var mes = ((totalMeses%12)+12)%12 + 1;
+  var anoLabel = ano<0 ? (Math.abs(ano)+1)+" a.C." : ano+"";
+  return anoLabel+"-"+String(mes).padStart(2,"0");
+}
+
+/* ---- Motor assíncrono de grupo — verifica virada de turno (RF-011/012/013) ----
+   Roda quando qualquer jogador tem o app aberto (checagem a cada 45s) e
+   também ao entrar na campanha. É um "catch-up" idempotente: se ninguém
+   abrir o app no momento exato, o turno é resolvido no primeiro acesso
+   seguinte — funcional para a maioria dos grupos, mas NÃO é um cron real
+   de servidor. Para garantir 00:01 mesmo com 0 jogadores conectados
+   (exigência literal da RF-013), implante a Cloud Function agendada
+   incluída em cloud-function-resolver.js (ver mensagem de entrega). */
+async function checkAndAdvanceTurn(){
+  if(!state.campaign || state.campaign.mode!=="grupo") return;
+  var turnoAtual = state.campaign.dataAtual;
+  var turnoDoc = await fsGet("turn:"+state.campaignId+":"+turnoAtual);
+  if(!turnoDoc) return;
+  var agora = new Date();
+  var criadoEm = new Date(turnoDoc.createdAt || state.campaign.cicloInicio);
+  var fechamento = new Date(criadoEm); fechamento.setHours(JANELA_FECHAMENTO_H,0,0,0);
+  var processamento = new Date(fechamento.getTime()+ (24-JANELA_FECHAMENTO_H)*3600*1000);
+  processamento.setHours(JANELA_PROCESSAMENTO_H, JANELA_PROCESSAMENTO_M,0,0);
+  if(agora < fechamento){ return; } // ainda na janela de ordens
+  if(turnoDoc.status==="ABERTO"){
+    await fsPut("turn:"+state.campaignId+":"+turnoAtual, Object.assign({}, turnoDoc, {status:"FECHADO", fechadoEm:Date.now()}));
+  }
+  if(agora >= processamento && turnoDoc.status!=="PUBLICADO"){
+    await resolverTurno(state.campaignId, turnoAtual);
+    var fresh = await fsGet("campaign:"+state.campaignId);
+    state.campaign = fresh;
+    el("game-subtitle").textContent = PERIODOS[fresh.periodoHistorico].label+" · "+fresh.dataAtual+" · grupo";
+    renderPaisPanel(); renderOrdensTab(); renderHistoricoPanel(); refreshCountriesIndex();
+  }
+}
+
+/* =========================================================
+   BOOT
+   ========================================================= */
+initAuth();
+
+})();
+</script>
+</body>
+</html>
