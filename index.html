@@ -985,6 +985,35 @@ function gerarGruposPopulacionais(pop, periodoKey){
   });
 }
 
+/* =========================================================
+   PAÍSES VIZINHOS CONTROLADOS PELA IA — RF-007/RF-008
+   Gerados na fundação da campanha para que o mundo não fique vazio.
+   Cada um recebe estado real no Firestore (não é só texto do Mestre),
+   então a aba Mundo e o Conselho sempre falam da mesma realidade.
+   ========================================================= */
+var NOMES_VIZINHOS = {
+  antiguidade: [["Cassitera","Selo do Leão"],["Turash","Cidade das Sete Portas"],["Meridão","Vale Dourado"],["Ostrenia","Porto das Âncoras"]],
+  medieval: [["Val'Aurin","Torre Branca"],["Kordwyn","Bastião Negro"],["Serelheim","Alto dos Cedros"],["Draymoor","Porto Cinzento"]],
+  moderna: [["República de Vantille","Porto Novo"],["Reino de Estrelmark","Coroa Real"],["Colônia de Aurinha","Baía Dourada"],["Condado de Norwyth","Vila Alta"]],
+  contemporanea: [["República Federativa de Solmar","Capital Solmar"],["Estado de Ferrania","Nova Ferrânia"],["União de Cordyllia","Porto Livre"],["República Popular de Yashenko","Yashen"]]
+};
+function gerarPaisesVizinhos(campaignId, periodoKey, populacaoBase, quantidade){
+  var per = PERIODOS[periodoKey];
+  var lista = NOMES_VIZINHOS[periodoKey] || NOMES_VIZINHOS.medieval;
+  var out = [];
+  for(var i=0;i<Math.min(quantidade, lista.length);i++){
+    var nomeCap = lista[i];
+    var fator = 0.5 + Math.random()*1.4; // vizinhos menores e maiores que o país do jogador
+    var pop = Math.round(populacaoBase*fator);
+    var governo = per.governos[Math.floor(Math.random()*per.governos.length)];
+    var countryId = "pais_ia_"+Math.random().toString(36).slice(2,8);
+    var pais = gerarPaisInicial(periodoKey, nomeCap[0], nomeCap[1], governo, pop, "País vizinho gerado pelo motor — controlado pela IA.");
+    pais.controladoPorIA = true;
+    out.push({countryId:countryId, pais:pais});
+  }
+  return out;
+}
+
 el("wz-finish").addEventListener("click", async function(){
   var nome = el("pais-nome").value.trim();
   var capital = el("pais-capital").value.trim();
@@ -1028,7 +1057,18 @@ el("wz-finish").addEventListener("click", async function(){
     await fsPut("campaign:"+campaignId, campaign);
     await fsPut("country:"+campaignId+":"+countryId, pais);
     await fsPut("leader:"+campaignId+":"+session.email, chefe);
-    await fsPut("events:"+campaignId, [{ turno:dataAtual, texto: nome+" é fundado sob o governo de "+chefeNome+" ("+governo+").", tipo:"fundacao", ts:Date.now() }]);
+    var eventosIniciais = [{ turno:dataAtual, texto: nome+" é fundado sob o governo de "+chefeNome+" ("+governo+").", tipo:"fundacao", ts:Date.now() }];
+
+    // RF-007/RF-008: gera 3 países vizinhos controlados pela IA para o
+    // mundo não ficar vazio (aparecem na aba Mundo e são conhecidos pelo Conselho)
+    var vizinhos = gerarPaisesVizinhos(campaignId, wz.periodo, pop, 3);
+    for(var vi=0; vi<vizinhos.length; vi++){
+      await fsPut("country:"+campaignId+":"+vizinhos[vi].countryId, vizinhos[vi].pais);
+      campaign.aiCountries.push(vizinhos[vi].countryId);
+      eventosIniciais.push({ turno:dataAtual, texto: vizinhos[vi].pais.nome+" é conhecido como país vizinho, sob "+vizinhos[vi].pais.governo+".", tipo:"fundacao", ts:Date.now() });
+    }
+    await fsPut("campaign:"+campaignId, campaign);
+    await fsPut("events:"+campaignId, eventosIniciais);
     await fsPut("orders:"+campaignId+":"+countryId+":"+dataAtual, []);
     await fsPut("diplomacy:"+campaignId, []);
     await fsPut("turn:"+campaignId+":"+dataAtual, { status:"ABERTO", createdAt:Date.now() });
@@ -1254,14 +1294,38 @@ el("diplo-send").addEventListener("click", async function(){
 /* ---- Mundo (RF-019 fog of war simplificado) ---- */
 function renderMundoPanel(){
   var html = "<div class='stat-panel'><h3>Países conhecidos</h3>";
-  Object.keys(state.countries).forEach(function(cid){
+  var ids = Object.keys(state.countries);
+  if(!ids.length){ html += "<p class='empty-note'>Nenhum país registrado ainda.</p>"; }
+  ids.forEach(function(cid){
     var c = state.countries[cid];
     var mine = cid===state.myCountryId;
-    html += "<div class='pop-row'><span>"+(mine?"👑 ":"")+esc(c.nome)+" — "+esc(c.governo)+"</span>"+
+    var tagIA = c.controladoPorIA ? " <span class='mini-badge'>IA</span>" : "";
+    html += "<div class='pop-row'><span>"+(mine?"👑 ":"")+esc(c.nome)+tagIA+" — "+esc(c.governo)+"</span>"+
       "<span>"+(mine ? ("tesouro "+fmtNum(c.tesouro)) : "informação limitada (fog of war)")+"</span></div>";
   });
-  html += "</div><p class='small-note'>No MVP atual, todo mundo vê o nome/governo dos outros países (nível de 'conhecimento público'). Inteligência militar/econômica detalhada de outros países (RF-019: confirmada / estimada / desconhecida / falsa) é um próximo passo — hoje só o Painel do seu próprio país mostra números exatos.</p>";
+  html += "</div>";
+  if(ids.length<=1){
+    html += "<div class='stat-panel'><p class='small-note' style='margin:0 0 10px;'>Esta campanha ainda não tem países vizinhos registrados (ela pode ter sido criada antes desse recurso).</p>"+
+      "<button class='secondary-btn' id='btn-gerar-vizinhos'>Gerar países vizinhos agora</button></div>";
+  }
+  html += "<p class='small-note'>No MVP atual, todo mundo vê o nome/governo dos outros países (nível de 'conhecimento público'). Inteligência militar/econômica detalhada de outros países (RF-019: confirmada / estimada / desconhecida / falsa) é um próximo passo — hoje só o Painel do seu próprio país mostra números exatos. O Conselho só é informado sobre os países que realmente existem aqui — se ele mencionar algo diferente disso, é boato, não fato do mundo.</p>";
   el("mundo-panel-content").innerHTML = html;
+  var btn = el("btn-gerar-vizinhos");
+  if(btn) btn.addEventListener("click", async function(){
+    btn.disabled = true; btn.textContent = "Gerando…";
+    var pop = (state.myCountry && state.myCountry.populacaoTotal) || 500000;
+    var vizinhos = gerarPaisesVizinhos(state.campaignId, state.campaign.periodoHistorico, pop, 3);
+    for(var i=0;i<vizinhos.length;i++){
+      await fsPut("country:"+state.campaignId+":"+vizinhos[i].countryId, vizinhos[i].pais);
+      state.campaign.aiCountries = state.campaign.aiCountries || [];
+      state.campaign.aiCountries.push(vizinhos[i].countryId);
+      await appendEvent(state.campaignId, currentTurnKey(), vizinhos[i].pais.nome+" passa a ser conhecido como país vizinho, sob "+vizinhos[i].pais.governo+".", "fundacao");
+    }
+    await fsPut("campaign:"+state.campaignId, state.campaign);
+    await refreshCountriesIndex();
+    toast("Países vizinhos gerados.");
+    renderMundoPanel(); renderHistoricoPanel(); renderDiplomaciaTab();
+  });
 }
 
 /* ---- Histórico / linha do tempo (RF-022 / RF-023) ---- */
@@ -1315,9 +1379,13 @@ el("chat-form").addEventListener("submit", async function(ev){
   el("chat-send").disabled = true;
   try{
     var c = state.myCountry;
+    var outrosPaises = Object.keys(state.countries).filter(function(cid){return cid!==state.myCountryId;})
+      .map(function(cid){ var oc=state.countries[cid]; return oc.nome+" ("+oc.governo+(oc.controladoPorIA?", vizinho":"")+")"; });
     var sys = "Você é o Conselho Real de "+c.nome+" — ministros da Fazenda, da Guerra, das Relações Exteriores e do Interior, período "+PERIODOS[state.campaign.periodoHistorico].label+
       ". Responda como conselheiros: dê análise, opiniões (podem discordar do Chefe de Estado) e sugestões. "+
       "NUNCA declare mudanças de números de Estado (tesouro, população, exército etc.) — você só aconselha; quem decide os números é o motor do jogo, não você (RF-045). "+
+      "IMPORTANTE: os únicos outros países que existem neste mundo são: "+(outrosPaises.length?outrosPaises.join(", "):"nenhum ainda registrado")+
+      ". Não invente nomes de outros países, reinos ou impérios além desses — se quiser especular sobre algo além das fronteiras conhecidas, deixe claro que é boato não confirmado. "+
       "Estado atual: tesouro "+c.tesouro+", estabilidade "+c.estabilidade+"%, felicidade "+c.felicidade+"%, exército "+c.exercito.efetivo+" soldados. Responda em português, em 2-4 frases, tom de corte real.";
     var resp = await callGemini(sys, texto);
     msgs.push({role:"conselho", texto:resp, ts:Date.now()});
@@ -1399,8 +1467,10 @@ async function resolverTurno(campaignId, turnoAtual){
       var narrativa = textoResumo;
       if(session.apiKey){
         try{
+          var vizinhosConhecidos = countryIds.filter(function(x){return x!==cid2;}).map(function(x){return state.countries[x].nome;});
           var sys = "Você é o narrador de um simulador político (RPG D20 de chefes de Estado), período "+PERIODOS[campaign.periodoHistorico].label+". "+
-            "Narre em português, em UM parágrafo curto (3-5 frases), o mês de "+c2.nome+" com base EXATAMENTE nos fatos abaixo — não invente números novos, apenas dê contexto e cor histórica aos números já decididos.";
+            "Narre em português, em UM parágrafo curto (3-5 frases), o mês de "+c2.nome+" com base EXATAMENTE nos fatos abaixo — não invente números novos, apenas dê contexto e cor histórica aos números já decididos. "+
+            "Os únicos outros países que existem neste mundo são: "+(vizinhosConhecidos.length?vizinhosConhecidos.join(", "):"nenhum")+". Não mencione nações que não estejam nesta lista.";
           narrativa = await callGemini(sys, "País: "+c2.nome+"\nFatos do mês:\n"+textoResumo+"\nTesouro atual: "+c2.tesouro+"\nEstabilidade: "+c2.estabilidade+"%");
         }catch(e){ /* segue com o resumo cru se a IA falhar */ }
       }
