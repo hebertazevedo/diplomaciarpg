@@ -632,37 +632,107 @@ async function releaseLock(key){ await fsPut(key, null); }
    Ela só narra o que o motor determinístico já calculou. As funções
    de resolução (mais abaixo) sempre calculam antes de chamar a IA.
    ========================================================= */
-var DEFAULT_MODEL = "gemini-2.5-flash";
+/* Cadeia de modelos, do mais capaz ao mais simples/disponível. Se a chave
+   do jogador não tiver acesso a um modelo (403/404), ou a cota estourar
+   (429), ou o modelo estiver sobrecarregado (500/503), tentamos o próximo
+   da lista automaticamente — o jogo nunca trava esperando um modelo só. */
+var MODEL_CHAIN = [
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3-pro-preview",
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b"
+];
+var GEMINI_TIMEOUT_MS = 25000;
 function apiBase(){ return "https://generativelanguage.googleapis.com"; }
-async function callGemini(systemText, userText, opts){
-  opts = opts || {};
-  var model = opts.model || session.model || DEFAULT_MODEL;
+
+/* Erros que significam "esse modelo específico não serve agora, tenta o
+   próximo" — ao contrário de erros de autenticação (chave inválida), que
+   valem para qualquer modelo e não adianta trocar. */
+function isFallbackWorthyStatus(status){
+  return status===404 || status===403 || status===429 || status===500 || status===503;
+}
+
+async function callGeminiOnce(model, systemText, userText, opts){
   var url = apiBase()+"/v1beta/models/"+model+":generateContent";
   var body = {
     systemInstruction: { parts:[{text:systemText}] },
     contents: [{ role:"user", parts:[{text:userText}] }],
     generationConfig: { temperature: opts.temperature!==undefined?opts.temperature:0.9, maxOutputTokens: opts.maxTokens||1400 }
   };
-  var res = await fetch(url, {
-    method:"POST",
-    headers:{ "x-goog-api-key": session.apiKey, "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
+  var controller = new AbortController();
+  var timer = setTimeout(function(){ controller.abort(); }, GEMINI_TIMEOUT_MS);
+  var res;
+  try{
+    res = await fetch(url, {
+      method:"POST",
+      headers:{ "x-goog-api-key": session.apiKey, "Content-Type":"application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+  }catch(e){
+    clearTimeout(timer);
+    var timeoutErr = new Error(e.name==="AbortError" ? "tempo esgotado" : (e.message||String(e)));
+    timeoutErr.status = 0; // rede/timeout — vale tentar o próximo modelo
+    throw timeoutErr;
+  }
+  clearTimeout(timer);
   if(!res.ok){
-    var errText = "Erro na chamada ao Gemini ("+res.status+")";
-    try{ var j = await res.json(); if(j && j.error && j.error.message) errText = j.error.message; }catch(e){}
-    throw new Error(errText);
+    var errText = "HTTP "+res.status;
+    try{ var j = await res.json(); if(j && j.error && j.error.message) errText = j.error.message; }catch(e2){}
+    var httpErr = new Error(errText); httpErr.status = res.status;
+    throw httpErr;
   }
   var data = await res.json();
   var cand = data && data.candidates && data.candidates[0];
+  var bloqueado = cand && cand.finishReason==="SAFETY";
+  if(bloqueado) throw Object.assign(new Error("resposta bloqueada por segurança"), {status:200, noFallback:true});
   var text = cand && cand.content && cand.content.parts && cand.content.parts.map(function(p){return p.text||"";}).join("") || "";
+  if(!text.trim()){ var vazioErr = new Error("resposta vazia"); vazioErr.status = 200; throw vazioErr; }
   return text.trim();
+}
+
+/* Ponto de entrada usado pelo resto do jogo. Tenta o modelo que funcionou
+   da última vez primeiro (mais rápido no dia a dia); se falhar, percorre
+   a MODEL_CHAIN inteira antes de desistir. Nunca deixa a chamada travar
+   indefinidamente — cada tentativa tem timeout próprio. */
+async function callGemini(systemText, userText, opts){
+  opts = opts || {};
+  if(!session.apiKey) throw new Error("Configure sua chave do Gemini primeiro.");
+  var ordem = MODEL_CHAIN.slice();
+  if(opts.model){ ordem = [opts.model]; }
+  else if(session.model && ordem.indexOf(session.model)>0){
+    ordem = [session.model].concat(ordem.filter(function(m){return m!==session.model;}));
+  }
+  var falhas = [];
+  for(var i=0;i<ordem.length;i++){
+    var model = ordem[i];
+    try{
+      var texto = await callGeminiOnce(model, systemText, userText, opts);
+      session.model = model; // guarda o que funcionou, prioriza da próxima vez
+      return texto;
+    }catch(e){
+      falhas.push(model+": "+(e.message||e));
+      var podeTentarProximo = !e.noFallback && (e.status===0 || isFallbackWorthyStatus(e.status));
+      if(!podeTentarProximo){
+        throw new Error("Gemini ("+model+"): "+(e.message||e));
+      }
+      // senão, segue o loop e tenta o próximo modelo da cadeia
+    }
+  }
+  throw new Error("Nenhum modelo do Gemini respondeu. Tentativas: "+falhas.join(" | "));
 }
 
 /* =========================================================
    SESSÃO / AUTENTICAÇÃO
    ========================================================= */
-var session = { email:null, name:null, apiKey:null, model:DEFAULT_MODEL };
+var session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0] };
 var state = {
   campaign:null, campaignId:null, myCountryId:null, myLeader:null, myCountry:null,
   countries:{}, turnKey:null, tickTimer:null
@@ -727,7 +797,7 @@ async function initAuth(){
 
 async function logout(){
   try{ if(fbReady()) await window.__fb.signOut(window.__fb.auth); }catch(e){}
-  session = { email:null, name:null, apiKey:null, model:DEFAULT_MODEL };
+  session = { email:null, name:null, apiKey:null, model:MODEL_CHAIN[0] };
   showView("auth");
 }
 
