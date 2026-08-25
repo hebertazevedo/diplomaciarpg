@@ -76,6 +76,8 @@ if (window.__fbPending) {
 }
 *{box-sizing:border-box;}
 html,body{height:100%;margin:0;}
+html{height:-webkit-fill-available;}
+body{height:100dvh;min-height:100vh;min-height:-webkit-fill-available;}
 body{
   background:radial-gradient(1200px 800px at 50% -10%, #1a1c22, var(--bg) 60%);
   color:var(--ink); font-family:"Inter",system-ui,sans-serif; -webkit-font-smoothing:antialiased;
@@ -89,9 +91,9 @@ a{color:var(--gold);}
 
 #app{height:100%;}
 .view{display:none;height:100%;}
-.view.active{display:flex;flex-direction:column;}
+.view.active{display:flex;flex-direction:column;min-height:0;height:100%;}
 
-.centered-screen{align-items:center;justify-content:center;padding:20px;}
+.centered-screen{align-items:center;justify-content:center;padding:20px;overflow-y:auto;min-height:0;}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);}
 .mark-row{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
 .brand-mark{width:42px;height:42px;border-radius:10px;background:linear-gradient(140deg,var(--gold),var(--gold-dim));display:flex;align-items:center;justify-content:center;font-weight:700;color:#1a1408;font-size:20px;flex-shrink:0;}
@@ -124,16 +126,26 @@ textarea.text-input{resize:vertical;}
 .backend-badge{font-size:11px;color:var(--ink-faint);margin:8px 0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;}
 
 /* ---- Top bar / hub ---- */
-#top-bar,.game-topbar{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#181920,#141419);flex-shrink:0;}
-.brand{display:flex;align-items:center;gap:10px;}
-.brand-text b{font-size:15px;}
-.brand-text span{display:block;font-size:11px;color:var(--ink-faint);}
+#top-bar,.game-topbar{display:flex;align-items:center;gap:14px;padding:10px 18px;padding-top:calc(10px + env(safe-area-inset-top));border-bottom:1px solid var(--line);background:linear-gradient(180deg,#181920,#141419);flex-shrink:0;flex-wrap:wrap;row-gap:6px;}
+.brand-text{min-width:0;}
+.brand-text b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:46vw;}
+.brand-text span{display:block;font-size:11px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;}
 .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+@media (max-width:640px){
+  #top-bar,.game-topbar{padding:8px 12px;}
+  .brand-text b,.brand-text span{max-width:36vw;}
+  .tabbar{flex-basis:100%;margin-left:0;order:3;}
+  .icon-btn{width:30px;height:30px;}
+  .hub-scroll,.wizard-shell{padding-left:14px;padding-right:14px;}
+  .gtab{padding:12px;}
+  .stat-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));}
+}
+.brand{display:flex;align-items:center;gap:10px;}
 .icon-btn{width:34px;height:34px;border-radius:8px;background:transparent;border:1px solid var(--line);color:var(--ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;}
 .icon-btn svg{width:17px;height:17px;}
 .icon-btn:hover{color:var(--ink);border-color:#3a3b45;}
 
-.hub-scroll{flex:1;overflow-y:auto;padding:20px;max-width:900px;margin:0 auto;width:100%;}
+.hub-scroll{flex:1;min-height:0;overflow-y:auto;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));max-width:900px;margin:0 auto;width:100%;-webkit-overflow-scrolling:touch;}
 .hub-header h1{margin:0;font-size:24px;}
 .hub-header p{color:var(--ink-dim);margin:4px 0 20px;}
 .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;}
@@ -183,9 +195,10 @@ textarea.text-input{resize:vertical;}
 .tabbar{display:flex;gap:2px;margin-left:8px;overflow-x:auto;}
 .tabbar button{background:transparent;border:none;color:var(--ink-faint);padding:8px 12px;font-size:12.5px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
 .tabbar button.active{color:var(--ink);border-color:var(--gold);}
-#layout{flex:1;overflow:hidden;position:relative;}
-.gtab{display:none;height:100%;overflow-y:auto;padding:18px;max-width:900px;margin:0 auto;width:100%;}
+#layout{flex:1;overflow:hidden;position:relative;min-height:0;}
+.gtab{display:none;height:100%;overflow-y:auto;padding:18px;max-width:900px;margin:0 auto;width:100%;min-height:0;}
 .gtab.active{display:block;}
+#gtab-conselho.active{display:flex;flex-direction:column;padding:12px;min-height:0;overflow-y:hidden;}
 
 .stat-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;}
 .stat-panel h3{margin:0 0 12px;font-size:14px;color:var(--gold);text-transform:uppercase;letter-spacing:.05em;}
@@ -211,13 +224,13 @@ textarea.text-input{resize:vertical;}
 .turn-banner .tb-sub{font-size:12px;color:var(--ink-dim);}
 .turn-banner .tb-status{font-size:11px;padding:4px 10px;border-radius:20px;background:#20222a;}
 
-.chat-scroll-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;height:70vh;overflow:hidden;}
-.chat-msgs{flex:1;overflow-y:auto;padding:14px;}
+.chat-scroll-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden;}
+.chat-msgs{flex:1;min-height:0;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch;}
 .msg{max-width:80%;padding:10px 13px;border-radius:12px;margin-bottom:10px;font-size:14px;line-height:1.5;white-space:pre-wrap;}
 .msg.me{background:var(--gold-dim);color:#1a1408;margin-left:auto;border-bottom-right-radius:3px;}
 .msg.gm{background:var(--panel2);border:1px solid var(--line);margin-right:auto;border-bottom-left-radius:3px;}
 .msg .msg-tag{font-size:10.5px;opacity:.7;display:block;margin-bottom:3px;}
-.chat-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);}
+.chat-form{display:flex;gap:8px;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);flex-shrink:0;}
 .chat-form textarea{flex:1;background:#101116;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px;font-family:inherit;font-size:14px;resize:none;}
 .send-btn{background:linear-gradient(140deg,var(--gold),var(--gold-dim));color:#1a1408;border:none;border-radius:8px;padding:0 18px;font-weight:700;cursor:pointer;}
 
@@ -285,6 +298,7 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
   <header id="top-bar">
     <div class="brand"><div class="brand-mark">D</div><div class="brand-text"><b>Diplomacia</b><span id="hub-user-email">—</span></div></div>
     <div class="topbar-actions">
+      <button class="icon-btn hidden" id="hub-admin-btn" title="Painel administrativo">🛡️</button>
       <button class="icon-btn" id="hub-key" title="Trocar chave do Gemini">🔑</button>
       <button class="icon-btn" id="hub-logout" title="Sair">⏻</button>
     </div>
@@ -297,6 +311,18 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
     </div>
     <p class="adv-list-title">Suas campanhas</p>
     <div id="hub-camp-list"><p class="empty-note">Carregando…</p></div>
+  </div>
+</div>
+
+<!-- ============ ADMIN (acesso separado, fora de qualquer campanha) ============ -->
+<div id="view-admin" class="view">
+  <header id="top-bar-admin" class="game-topbar">
+    <button class="icon-btn" id="admin-back">←</button>
+    <div class="brand-text"><b>🛡️ Painel administrativo</b><span id="admin-user-email">—</span></div>
+  </header>
+  <div class="hub-scroll">
+    <p class="card-lede">Visão de todas as campanhas do sistema — este painel funciona fora de qualquer campanha específica.</p>
+    <div id="admin-camp-list"><p class="empty-note">Carregando…</p></div>
   </div>
 </div>
 
@@ -404,8 +430,13 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
           </select>
           <label class="inline"><input type="checkbox" id="ord-secreta"> Ordem secreta</label>
         </div>
+        <div class="field hidden" id="ord-alvo-field">
+          <label for="ord-alvo">País-alvo da operação de espionagem</label>
+          <select id="ord-alvo" class="text-input"></select>
+        </div>
         <div class="field"><textarea id="ord-texto" class="text-input" rows="2" placeholder="Descreva a ordem em linguagem natural — ex: 'Aumentar impostos sobre a agricultura em 15%'"></textarea></div>
         <div class="card-actions"><button class="primary-btn" id="ord-add">Adicionar ordem</button></div>
+        <p class="small-note" style="margin-top:8px;">Os efeitos de cada ordem aparecem no mês seguinte, no Histórico — item por item, mais um resumo consolidado do mês. Ordens de espionagem nunca aparecem no histórico público: geram Relatórios de Inteligência só seus (aba Mundo).</p>
       </div>
       <h3 style="font-size:13px;color:var(--ink-dim);margin:16px 0 8px;">Ordens deste mês</h3>
       <div id="ordens-list"></div>
@@ -832,6 +863,7 @@ function d20Test(attrScore, cd){
    ========================================================= */
 async function enterHub(){
   el("hub-user-email").textContent = (session.name || session.email) + (session.isAdmin ? " · admin" : "");
+  el("hub-admin-btn").classList.toggle("hidden", !session.isAdmin);
   showView("hub");
   await refreshHubCampaigns();
 }
@@ -841,8 +873,6 @@ async function refreshHubCampaigns(){
   var all = await fsList("campaign:");
   var todas = all.map(function(r){return r.value;}).filter(Boolean).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
   var mine = todas.filter(function(c){ return Array.isArray(c.members) && c.members.indexOf(session.email)!==-1; });
-
-  if(session.isAdmin) renderAdminPanel(todas);
 
   if(!mine.length){ box.innerHTML = "<p class='empty-note'>Nenhuma campanha ainda. Funde seu primeiro reino acima.</p>"; return; }
   box.innerHTML = "";
@@ -858,40 +888,56 @@ async function refreshHubCampaigns(){
 }
 
 /* =========================================================
-   PAINEL ADMINISTRATIVO — acesso liberado só para ADMIN_EMAILS
+   PAINEL ADMINISTRATIVO — view própria, fora de qualquer campanha
+   Acesso liberado só para ADMIN_EMAILS (ver hub-admin-btn).
    ========================================================= */
-function renderAdminPanel(todasCampanhas){
-  var host = el("hub-admin-panel");
-  if(!host){
-    host = document.createElement("div");
-    host.id = "hub-admin-panel";
-    host.className = "stat-panel";
-    host.style.marginBottom = "20px";
-    host.style.borderColor = "var(--gold-dim)";
-    el("hub-camp-list").parentNode.insertBefore(host, el("hub-camp-list"));
-  }
-  var html = "<h3>🛡️ Painel administrativo — "+esc(session.email)+"</h3>"+
-    "<p class='small-note' style='margin-top:-4px;'>Visão de todas as campanhas do sistema, mesmo as que você não joga.</p>";
-  if(!todasCampanhas.length){ html += "<p class='empty-note'>Nenhuma campanha no sistema ainda.</p>"; }
-  todasCampanhas.forEach(function(c){
+el("hub-admin-btn").addEventListener("click", function(){
+  if(!session.isAdmin) return;
+  el("admin-user-email").textContent = session.email;
+  showView("admin");
+  refreshAdminPanel();
+});
+el("admin-back").addEventListener("click", function(){ showView("hub"); refreshHubCampaigns(); });
+
+async function refreshAdminPanel(){
+  var box = el("admin-camp-list");
+  box.innerHTML = "<p class='empty-note'>Carregando…</p>";
+  var all = await fsList("campaign:");
+  var todas = all.map(function(r){return r.value;}).filter(Boolean).sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+  if(!todas.length){ box.innerHTML = "<p class='empty-note'>Nenhuma campanha no sistema ainda.</p>"; return; }
+  box.innerHTML = "";
+  todas.forEach(function(c){
     var per = PERIODOS[c.periodoHistorico];
-    html += "<div class='camp-card' style='cursor:default;'><div>"+
-      "<div class='cc-name'>"+esc(c.name)+"</div>"+
+    var d = document.createElement("div"); d.className="camp-card"; d.style.cursor="default";
+    d.innerHTML = "<div><div class='cc-name'>"+esc(c.name)+"</div>"+
       "<div class='cc-sub'>"+esc(c.id)+" · dono: "+esc(c.ownerEmail)+" · "+esc(per?per.label:c.periodoHistorico)+" · "+esc(c.dataAtual||"")+" · "+(c.mode==="grupo"?"Grupo":"Solo")+"</div></div>"+
-      "<div style='display:flex;gap:6px;'><button class='ghost-btn' data-obs='"+esc(c.id)+"'>Entrar</button><button class='danger-btn' data-del='"+esc(c.id)+"'>Excluir</button></div>"+
-      "</div>";
+      "<div style='display:flex;gap:6px;flex-wrap:wrap;'>"+
+      "<button class='ghost-btn' data-view='"+esc(c.id)+"'>Ver (observador)</button>"+
+      "<button class='secondary-btn' data-turn='"+esc(c.id)+"'>Forçar turno</button>"+
+      "<button class='danger-btn' data-del='"+esc(c.id)+"'>Excluir</button></div>";
+    box.appendChild(d);
   });
-  host.innerHTML = html;
-  host.querySelectorAll("button[data-obs]").forEach(function(btn){
-    btn.addEventListener("click", function(){ enterCampaign(btn.getAttribute("data-obs")); });
+  box.querySelectorAll("button[data-view]").forEach(function(btn){
+    btn.addEventListener("click", function(){ enterCampaign(btn.getAttribute("data-view")); });
   });
-  host.querySelectorAll("button[data-del]").forEach(function(btn){
+  box.querySelectorAll("button[data-turn]").forEach(function(btn){
+    btn.addEventListener("click", async function(){
+      var id = btn.getAttribute("data-turn");
+      var camp = await fsGet("campaign:"+id);
+      if(!camp){ toast("Campanha não encontrada."); return; }
+      btn.disabled = true; btn.textContent = "Resolvendo…";
+      await resolverTurno(id, camp.dataAtual);
+      toast("Turno resolvido para "+camp.name+".");
+      refreshAdminPanel();
+    });
+  });
+  box.querySelectorAll("button[data-del]").forEach(function(btn){
     btn.addEventListener("click", async function(){
       var id = btn.getAttribute("data-del");
       if(!confirm("Excluir a campanha "+id+" e todos os dados associados? Isso não pode ser desfeito.")) return;
       await excluirCampanha(id);
       toast("Campanha excluída.");
-      refreshHubCampaigns();
+      refreshAdminPanel();
     });
   });
 }
@@ -1137,7 +1183,9 @@ function gerarOrdensIA(pais){
    resolução do mês (RF-018: negociação também é assíncrona). */
 function decidirPropostaIA(paisAlvo, proposta){
   var p = paisAlvo.perfilLideranca || gerarPerfilLideranca(paisAlvo.governo);
-  if(proposta.tipo==="declaracao_guerra") return "aceito"; // é registrada/reconhecida, não "aceita" no sentido de concordar
+  if(proposta.tipo==="declaracao_guerra"){
+    return { status:"aceito", texto:"A declaração foi recebida. "+paisAlvo.nome+" se prepara para o conflito." };
+  }
   var chance = 50;
   if(["tratado_paz","alianca","comercio","troca_territorio"].indexOf(proposta.tipo)!==-1){
     chance += p.diplomacia*0.4 - p.agressividade*0.25 - p.isolacionismo*0.2;
@@ -1145,7 +1193,34 @@ function decidirPropostaIA(paisAlvo, proposta){
     chance += (100-p.agressividade)*0.2 - p.autoritarismo*0.3;
   }
   chance = clamp(chance,5,95);
-  return (Math.random()*100 < chance) ? "aceito" : "recusado";
+  var aceito = Math.random()*100 < chance;
+  return { status: aceito?"aceito":"recusado", texto: gerarRespostaTextoIA(paisAlvo, proposta, aceito) };
+}
+/* Texto de resposta que o país IA envia junto com o aceite/recusa —
+   sem depender de chamada ao Gemini (roda durante a resolução do mês,
+   junto de vários países, e não pode travar nem custar tempo extra). */
+function gerarRespostaTextoIA(paisAlvo, proposta, aceito){
+  var p = paisAlvo.perfilLideranca || gerarPerfilLideranca(paisAlvo.governo);
+  var motivoAceite = {
+    tratado_paz:"A paz serve aos interesses de "+paisAlvo.nome+" neste momento.",
+    alianca:"Uma aliança fortalece nossa posição frente a outros poderes.",
+    comercio:"O comércio proposto beneficia nosso tesouro e nossos mercadores.",
+    troca_territorio:"Os termos da troca são vantajosos o suficiente para aceitarmos.",
+    sancao:"Cedemos para evitar um confronto maior neste momento.",
+    tributo:"Preferimos pagar a arriscar um conflito agora.",
+    ameaca:"Recuamos diante da pressão apresentada."
+  };
+  var motivoRecusa = {
+    tratado_paz:"Ainda não é o momento — "+paisAlvo.nome+" não vê vantagem em cessar hostilidades agora.",
+    alianca:"Nossos interesses não se alinham com os seus no momento.",
+    comercio:"Os termos comerciais propostos não nos favorecem.",
+    troca_territorio:"Esse território/recurso é estratégico demais para cedermos.",
+    sancao:"Não cederemos a pressões externas.",
+    tributo:"Recusamos pagar qualquer tributo.",
+    ameaca:(p.agressividade>60?"A ameaça só nos torna mais firmes na posição contrária.":"Preferimos negociar por outros meios.")
+  };
+  var mapa = aceito ? motivoAceite : motivoRecusa;
+  return mapa[proposta.tipo] || (aceito ? "A proposta foi aceita após deliberação do Conselho de "+paisAlvo.nome+"." : "A proposta foi recusada pelo Conselho de "+paisAlvo.nome+".");
 }
 
 el("wz-finish").addEventListener("click", async function(){
@@ -1244,7 +1319,7 @@ async function enterCampaign(campaignId){
   var per = PERIODOS[state.campaign.periodoHistorico];
   el("game-subtitle").textContent = per.label+" · "+state.campaign.dataAtual+" · "+(state.campaign.mode==="grupo"?"grupo":"solo");
   el("game-invite").classList.toggle("hidden", state.isObserver || state.campaign.mode!=="grupo" || state.campaign.ownerEmail!==session.email);
-  renderAdminToolbar();
+  // (ferramentas de admin ficam no Painel administrativo, fora daqui)
 
   showView("game");
   switchGameTab(state.isObserver ? "mundo" : "pais");
@@ -1261,28 +1336,9 @@ async function enterCampaign(campaignId){
     state.tickTimer = setInterval(checkAndAdvanceTurn, 45000);
   }
 }
-function renderAdminToolbar(){
-  var old = el("admin-toolbar"); if(old) old.remove();
-  if(!session.isAdmin) return;
-  var bar = document.createElement("div");
-  bar.id = "admin-toolbar"; bar.className = "stat-panel"; bar.style.borderColor = "var(--gold-dim)"; bar.style.margin = "12px 18px 0";
-  bar.innerHTML = "<h3>🛡️ Ferramentas de admin</h3><div class='card-actions' style='margin-top:0;'>"+
-    "<button class='secondary-btn' id='admin-forcar-turno'>Forçar resolução do turno agora</button>"+
-    "<button class='danger-btn' id='admin-excluir-camp'>Excluir esta campanha</button></div>";
-  el("layout").insertBefore(bar, el("layout").firstChild);
-  el("admin-forcar-turno").addEventListener("click", async function(){
-    toast("Resolvendo turno…");
-    await resolverTurno(state.campaignId, state.campaign.dataAtual);
-    await enterCampaign(state.campaignId);
-  });
-  el("admin-excluir-camp").addEventListener("click", async function(){
-    if(!confirm("Excluir esta campanha e todos os dados associados?")) return;
-    if(state.tickTimer) clearInterval(state.tickTimer);
-    await excluirCampanha(state.campaignId);
-    toast("Campanha excluída.");
-    showView("hub"); refreshHubCampaigns();
-  });
-}
+/* Observação: as ferramentas de admin (forçar turno, excluir campanha)
+   ficam só no Painel administrativo (view separada), não dentro da
+   campanha — entrar como observador aqui é só para visualizar. */
 async function refreshCountriesIndex(){
   var rows = await fsList("country:"+state.campaignId+":");
   state.countries = {};
@@ -1389,7 +1445,8 @@ async function renderOrdensTab(){
   if(!ordens.length){ list.innerHTML = "<p class='empty-note'>Nenhuma ordem enviada para este mês ainda.</p>"; }
   ordens.forEach(function(o, idx){
     var d = document.createElement("div"); d.className="order-list-item";
-    d.innerHTML = "<div><div class='ot'>"+esc(o.tipo)+(o.secreta?" <span class='secret-tag'>SECRETA</span>":"")+"</div><div class='oc'>"+esc(o.texto)+"</div></div>"+
+    var alvoTxt = o.alvo && state.countries[o.alvo] ? " → alvo: "+esc(state.countries[o.alvo].nome) : "";
+    d.innerHTML = "<div><div class='ot'>"+esc(o.tipo)+alvoTxt+(o.secreta?" <span class='secret-tag'>SECRETA</span>":"")+"</div><div class='oc'>"+esc(o.texto)+"</div></div>"+
       "<button class='ghost-btn' data-idx='"+idx+"'>Remover</button>";
     d.querySelector("button").addEventListener("click", async function(){
       ordens.splice(idx,1); await fsPut(ordersKey, ordens); renderOrdensTab();
@@ -1397,17 +1454,36 @@ async function renderOrdensTab(){
     list.appendChild(d);
   });
 }
+el("ord-tipo").addEventListener("change", function(){
+  var isEsp = el("ord-tipo").value==="espionagem";
+  el("ord-alvo-field").classList.toggle("hidden", !isEsp);
+  el("ord-secreta").checked = isEsp || el("ord-secreta").checked;
+  el("ord-secreta").disabled = isEsp; // espionagem é sempre secreta
+  if(isEsp){
+    var sel = el("ord-alvo"); sel.innerHTML = "";
+    Object.keys(state.countries).forEach(function(cid){
+      if(cid===state.myCountryId) return;
+      var o = document.createElement("option"); o.value=cid; o.textContent=state.countries[cid].nome; sel.appendChild(o);
+    });
+  }
+});
 el("ord-add").addEventListener("click", async function(){
   if(state.isObserver){ toast("Modo observador — sem país próprio."); return; }
   var texto = el("ord-texto").value.trim();
   if(!texto){ toast("Descreva a ordem."); return; }
+  var tipo = el("ord-tipo").value;
+  var isEsp = tipo==="espionagem";
+  if(isEsp && !el("ord-alvo").value){ toast("Escolha o país-alvo da operação de espionagem."); return; }
   var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
   var ordens = (await fsGet(ordersKey)) || [];
-  ordens.push({ tipo: el("ord-tipo").value, texto: texto, secreta: el("ord-secreta").checked, criadaEm: Date.now(), autor: session.email });
+  var nova = { tipo: tipo, texto: texto, secreta: isEsp || el("ord-secreta").checked, criadaEm: Date.now(), autor: session.email };
+  if(isEsp) nova.alvo = el("ord-alvo").value;
+  ordens.push(nova);
   await fsPut(ordersKey, ordens);
-  el("ord-texto").value=""; el("ord-secreta").checked=false;
+  el("ord-texto").value=""; el("ord-secreta").checked=false; el("ord-secreta").disabled=false;
+  el("ord-alvo-field").classList.add("hidden");
   renderOrdensTab();
-  toast("Ordem registrada.");
+  toast(isEsp ? "Operação de espionagem registrada — relatório sai no mês seguinte." : "Ordem registrada — efeito no mês seguinte.");
 });
 
 /* ---- Diplomacia (RF-017 / RF-018) ---- */
@@ -1437,16 +1513,19 @@ async function loadDiplomacyList(){
     var d = document.createElement("div"); d.className="diplo-card";
     var canRespond = p.toCountry===state.myCountryId && p.status==="pendente";
     d.innerHTML = "<div class='dc-top'><span>"+esc(p.tipo)+" · "+(p.fromCountry===state.myCountryId?"para ":"de ")+esc(otherName)+"</span><span class='dc-status "+p.status+"'>"+p.status+"</span></div>"+
-      "<div style='margin-top:6px;font-size:13px;'>"+esc(p.texto)+"</div>"+
+      "<div style='margin-top:6px;font-size:13px;'><b>Proposta:</b> "+esc(p.texto)+"</div>"+
+      (p.respostaTexto ? "<div style='margin-top:6px;font-size:13px;color:var(--ink-dim);border-left:2px solid var(--gold-dim);padding-left:8px;'><b>Resposta de "+esc(otherName)+":</b> "+esc(p.respostaTexto)+"</div>" : "")+
       (canRespond ? "<div class='card-actions'><button class='primary-btn' data-a='aceito'>Aceitar</button><button class='secondary-btn' data-a='recusado'>Recusar</button></div>" : "");
     if(canRespond){
       d.querySelectorAll("button[data-a]").forEach(function(btn){
         btn.addEventListener("click", async function(){
+          var status = btn.getAttribute("data-a");
+          var msg = prompt((status==="aceito"?"Mensagem ao aceitar (opcional):":"Mensagem ao recusar (opcional):"), "");
           var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
           var target = all.filter(function(x){return x.id===p.id;})[0];
-          if(target){ target.status = btn.getAttribute("data-a"); target.respondidaEm = Date.now(); }
+          if(target){ target.status = status; target.respondidaEm = Date.now(); target.respostaTexto = (msg&&msg.trim()) || (status==="aceito"?"Proposta aceita.":"Proposta recusada."); }
           await fsPut("diplomacy:"+state.campaignId, all);
-          await appendEvent(state.campaignId, currentTurnKey(), (target.status==="aceito"?"Aceita":"Recusada")+": proposta de "+p.tipo+" entre "+esc(state.myCountry.nome)+" e "+esc(otherName)+".", "diplomacia");
+          await appendEvent(state.campaignId, currentTurnKey(), (target.status==="aceito"?"Aceita":"Recusada")+": proposta de "+p.tipo+" entre "+esc(state.myCountry.nome)+" e "+esc(otherName)+". \""+esc(target.respostaTexto)+"\"", "diplomacia");
           loadDiplomacyList();
         });
       });
@@ -1468,7 +1547,7 @@ el("diplo-send").addEventListener("click", async function(){
 });
 
 /* ---- Mundo (RF-019 fog of war simplificado) ---- */
-function renderMundoPanel(){
+async function renderMundoPanel(){
   var html = "<div class='stat-panel'><h3>Países conhecidos</h3>";
   var ids = Object.keys(state.countries);
   if(!ids.length){ html += "<p class='empty-note'>Nenhum país registrado ainda.</p>"; }
@@ -1484,7 +1563,24 @@ function renderMundoPanel(){
     html += "<div class='stat-panel'><p class='small-note' style='margin:0 0 10px;'>Esta campanha ainda não tem países vizinhos registrados (ela pode ter sido criada antes desse recurso).</p>"+
       "<button class='secondary-btn' id='btn-gerar-vizinhos'>Gerar países vizinhos agora</button></div>";
   }
-  html += "<p class='small-note'>No MVP atual, todo mundo vê o nome/governo dos outros países (nível de 'conhecimento público'). Inteligência militar/econômica detalhada de outros países (RF-019: confirmada / estimada / desconhecida / falsa) é um próximo passo — hoje só o Painel do seu próprio país mostra números exatos. O Conselho só é informado sobre os países que realmente existem aqui — se ele mencionar algo diferente disso, é boato, não fato do mundo.</p>";
+
+  if(state.myCountryId && !state.isObserver){
+    html += "<div class='stat-panel'><h3>📡 Relatórios de Inteligência (só seus)</h3>";
+    var intel = ((await fsGet("intel:"+state.campaignId+":"+state.myCountryId)) || []).sort(function(a,b){return b.ts-a.ts;});
+    if(!intel.length){
+      html += "<p class='empty-note'>Nenhum relatório ainda — envie uma ordem de espionagem com um país-alvo, na aba Ordens.</p>";
+    } else {
+      var tagCor = {confirmada:"aceito", estimada:"pendente", desconhecida:"pendente", falsa:"recusado"};
+      intel.forEach(function(r){
+        html += "<div class='diplo-card'><div class='dc-top'><span>Alvo: "+esc(r.alvoNome)+" · "+esc(r.turno)+"</span><span class='dc-status "+(tagCor[r.confiabilidade]||"pendente")+"'>"+esc(r.confiabilidade)+"</span></div>"+
+          "<div style='margin-top:6px;font-size:13px;color:var(--ink-dim);'>Operação: "+esc(r.ordemTexto)+"</div>"+
+          "<div style='margin-top:6px;font-size:13px;white-space:pre-wrap;'>"+esc(r.relatorio)+"</div></div>";
+      });
+    }
+    html += "</div>";
+  }
+
+  html += "<p class='small-note'>Nomes/governo dos outros países são de conhecimento público. Números exatos de outros países só aparecem por Relatório de Inteligência (RF-019: confirmada / estimada / desconhecida / falsa, dependendo do resultado do teste D20). O Conselho só é informado sobre os países que realmente existem aqui — se ele mencionar algo diferente disso, é boato, não fato do mundo.</p>";
   el("mundo-panel-content").innerHTML = html;
   var btn = el("btn-gerar-vizinhos");
   if(btn) btn.addEventListener("click", async function(){
@@ -1610,13 +1706,14 @@ async function resolverTurno(campaignId, turnoAtual){
     await fsPut("turn:"+campaignId+":"+turnoAtual, Object.assign({}, turnoDoc, {status:"PROCESSANDO", processandoDesde:Date.now()}));
 
     var campaign = await fsGet("campaign:"+campaignId);
+    var proximaData = proximoMes(campaign.anoInicial, campaign.dataAtual);
     await refreshCountriesIndexFor(campaignId);
     var countryIds = Object.keys(state.countries);
-    var resumosPorPais = {};
 
     // RF-018: propostas diplomáticas pendentes endereçadas a países IA são
     // respondidas agora, na passagem do mês — de acordo com o perfil de
-    // liderança de cada um (não ficam mais paradas para sempre).
+    // liderança de cada um (não ficam mais paradas para sempre). O relato
+    // chega no mês seguinte, junto com o resto do processamento.
     var propostas = (await fsGet("diplomacy:"+campaignId)) || [];
     var houveRespostaDiplomatica = false;
     for(var pi=0;pi<propostas.length;pi++){
@@ -1624,59 +1721,88 @@ async function resolverTurno(campaignId, turnoAtual){
       if(prop.status!=="pendente") continue;
       var alvo = state.countries[prop.toCountry];
       if(!alvo || !alvo.controladoPorIA) continue; // países de jogadores humanos respondem manualmente
-      prop.status = decidirPropostaIA(alvo, prop);
+      var decisao = decidirPropostaIA(alvo, prop);
+      prop.status = decisao.status;
+      prop.respostaTexto = decisao.texto;
       prop.respondidaEm = Date.now();
       houveRespostaDiplomatica = true;
       var origem = state.countries[prop.fromCountry];
-      await appendEvent(campaignId, turnoAtual, (prop.status==="aceito"?"Aceita":"Recusada")+" por "+alvo.nome+": proposta de "+prop.tipo+" enviada por "+(origem?origem.nome:"?")+".", "diplomacia");
+      await appendEvent(campaignId, proximaData, (prop.status==="aceito"?"Aceita":"Recusada")+" por "+alvo.nome+": proposta de "+prop.tipo+" enviada por "+(origem?origem.nome:"?")+". \""+decisao.texto+"\"", "diplomacia");
     }
     if(houveRespostaDiplomatica) await fsPut("diplomacy:"+campaignId, propostas);
 
     for(var i=0;i<countryIds.length;i++){
       var cid = countryIds[i];
       var c = state.countries[cid];
+      var tesouroAntes = c.tesouro, estabAntes = c.estabilidade, felicAntes = c.felicidade;
       derivaDeFundo(c);
       var ordersKey = "orders:"+campaignId+":"+cid+":"+turnoAtual;
-      var ordens = (await fsGet(ordersKey)) || [];
+      var ordensBrutas = (await fsGet(ordersKey)) || [];
       // RF-007/RF-008: país IA emite suas próprias ordens internas todo
       // mês, de acordo com o perfil de liderança — não fica parado.
-      if(c.controladoPorIA){ ordens = ordens.concat(gerarOrdensIA(c)); }
-      var resumos = [];
-      ordens.forEach(function(o){
+      if(c.controladoPorIA){ ordensBrutas = ordensBrutas.concat(gerarOrdensIA(c)); }
+
+      // Espionagem com alvo definido vira Relatório de Inteligência
+      // separado (RF-019) — nunca entra nos efeitos/eventos públicos.
+      var ordensEspionagem = ordensBrutas.filter(function(o){ return o.tipo==="espionagem" && o.alvo; });
+      var ordensNormais = ordensBrutas.filter(function(o){ return !(o.tipo==="espionagem" && o.alvo); });
+
+      // ---- Ordens normais: cada uma aplica efeito e gera seu próprio
+      //      item de evento — visível separadamente no mês seguinte ----
+      var itensPublicos = [];
+      ordensNormais.forEach(function(o){
         var teste = d20Test(14, 12); // CD base 12; atributo 14 como aproximação de "governo competente"
         var fn = EFEITOS_ORDEM[o.tipo] || EFEITOS_ORDEM.administrativa;
         var linha = fn(c);
         if(teste.grau==="fracasso critico"){ c.estabilidade=clamp(c.estabilidade-4); linha += " — execução falhou gravemente (1 natural)"; }
         else if(teste.grau==="sucesso critico"){ c.estabilidade=clamp(c.estabilidade+2); linha += " — execução exemplar (20 natural)"; }
-        resumos.push({tipo:o.tipo, texto:o.texto, secreta:!!o.secreta, resultado:linha, teste:teste});
+        if(!o.secreta) itensPublicos.push({tipo:o.tipo, texto:o.texto, resultado:linha});
       });
+
+      // ---- Relatórios de Inteligência (privados, por operação) ----
+      var relatoriosIntel = [];
+      ordensEspionagem.forEach(function(o){
+        var paisAlvo = state.countries[o.alvo];
+        if(!paisAlvo) return;
+        relatoriosIntel.push(gerarRelatorioEspionagem(c, paisAlvo, o, o.alvo));
+      });
+      if(relatoriosIntel.length){
+        var intelKey = "intel:"+campaignId+":"+cid;
+        var intelAtual = (await fsGet(intelKey)) || [];
+        relatoriosIntel.forEach(function(r){ intelAtual.push(Object.assign({turno:proximaData, ts:Date.now()}, r)); });
+        await fsPut(intelKey, intelAtual);
+      }
+
       c.tesouro = Math.round(c.tesouro);
-      resumosPorPais[cid] = resumos;
       await fsPut("country:"+campaignId+":"+cid, c);
       await fsPut(ordersKey, []); // limpa ordens já processadas
-    }
 
-    // narrativa da IA — só narra o que já foi calculado (RF-045)
-    for(var j=0;j<countryIds.length;j++){
-      var cid2 = countryIds[j];
-      var c2 = state.countries[cid2];
-      var resumos2 = resumosPorPais[cid2].filter(function(r){return !r.secreta;});
-      var textoResumo = resumos2.length ? resumos2.map(function(r){return "- ("+r.tipo+") "+r.texto+" → "+r.resultado;}).join("\n") : "Nenhuma ordem enviada — o mês seguiu seu curso natural.";
-      var narrativa = textoResumo;
+      // ---- eventos itemizados, um por ordem pública, todos no mês seguinte ----
+      for(var ip=0; ip<itensPublicos.length; ip++){
+        var item = itensPublicos[ip];
+        await appendEvent(campaignId, proximaData, "["+c.nome+"] ("+item.tipo+") "+item.texto+" → "+item.resultado, "ordem_efeito");
+      }
+
+      // ---- consolidação do mês (números + narrativa opcional da IA) ----
+      var deltaTesouro = Math.round(c.tesouro - tesouroAntes);
+      var deltaEstab = c.estabilidade - estabAntes;
+      var deltaFelic = c.felicidade - felicAntes;
+      var resumoNumerico = "Tesouro "+(deltaTesouro>=0?"+":"")+deltaTesouro+" · Estabilidade "+(deltaEstab>=0?"+":"")+deltaEstab+"% · Felicidade "+(deltaFelic>=0?"+":"")+deltaFelic+"%";
+      var textoParaIA = itensPublicos.length ? itensPublicos.map(function(r){return "- ("+r.tipo+") "+r.texto+" → "+r.resultado;}).join("\n") : "Nenhuma ordem pública processada — o mês seguiu seu curso natural.";
+      var narrativa = "";
       if(session.apiKey){
         try{
-          var vizinhosConhecidos = countryIds.filter(function(x){return x!==cid2;}).map(function(x){return state.countries[x].nome;});
+          var vizinhosConhecidos = countryIds.filter(function(x){return x!==cid;}).map(function(x){return state.countries[x].nome;});
           var sys = "Você é o narrador de um simulador político (RPG D20 de chefes de Estado), período "+PERIODOS[campaign.periodoHistorico].label+". "+
-            "Narre em português, em UM parágrafo curto (3-5 frases), o mês de "+c2.nome+" com base EXATAMENTE nos fatos abaixo — não invente números novos, apenas dê contexto e cor histórica aos números já decididos. "+
+            "Narre em português, em UM parágrafo curto (2-4 frases), o mês de "+c.nome+" com base EXATAMENTE nos fatos abaixo — não invente números novos, apenas dê contexto e cor histórica. "+
             "Os únicos outros países que existem neste mundo são: "+(vizinhosConhecidos.length?vizinhosConhecidos.join(", "):"nenhum")+". Não mencione nações que não estejam nesta lista.";
-          narrativa = await callGemini(sys, "País: "+c2.nome+"\nFatos do mês:\n"+textoResumo+"\nTesouro atual: "+c2.tesouro+"\nEstabilidade: "+c2.estabilidade+"%");
-        }catch(e){ /* segue com o resumo cru se a IA falhar */ }
+          narrativa = await callGemini(sys, "País: "+c.nome+"\nFatos do mês:\n"+textoParaIA+"\nVariação do mês: "+resumoNumerico);
+        }catch(e){ /* segue só com o resumo numérico se a IA falhar */ }
       }
-      await appendEvent(campaignId, turnoAtual, narrativa, "resolucao");
+      await appendEvent(campaignId, proximaData, "📋 Resumo consolidado de "+c.nome+" — "+resumoNumerico+(narrativa?(" — "+narrativa):""), "consolidacao");
     }
 
     // avança para o próximo mês
-    var proximaData = proximoMes(campaign.anoInicial, campaign.dataAtual);
     campaign.dataAtual = proximaData; campaign.updatedAt = Date.now();
     await fsPut("campaign:"+campaignId, campaign);
     await fsPut("turn:"+campaignId+":"+turnoAtual, {status:"PUBLICADO", processandoDesde:turnoDoc.processandoDesde, resolvidoEm:Date.now()});
@@ -1686,6 +1812,39 @@ async function resolverTurno(campaignId, turnoAtual){
     await releaseLock(lockKey);
   }
 }
+/* Gera um Relatório de Inteligência para uma operação de espionagem com
+   alvo definido (RF-019). A confiabilidade da informação depende de um
+   teste D20 — igual ao resto do jogo, o motor decide os números, nunca
+   a IA (RF-045); o relatório é só texto formatado em cima do resultado. */
+function gerarRelatorioEspionagem(paisOrigem, paisAlvo, ordem, alvoId){
+  var teste = d20Test(14, 14); // espionagem é mais difícil que uma ordem interna comum
+  var tier = teste.grau==="sucesso critico" ? "confirmada"
+    : teste.grau==="sucesso" ? "estimada"
+    : teste.grau==="fracasso" ? "desconhecida" : "falsa";
+  function estimativa(valorReal){ var f = 0.75+Math.random()*0.5; return Math.round(valorReal*f); }
+  function falso(valorReal){ var f = 0.3+Math.random()*1.4; return Math.round(valorReal*f); }
+  var linhas = [];
+  if(tier==="confirmada"){
+    linhas.push("Tesouro: "+fmtNum(paisAlvo.tesouro)+" moedas (confirmado)");
+    linhas.push("Exército: "+fmtNum(paisAlvo.exercito.efetivo)+" soldados, moral "+paisAlvo.exercito.moral+"% (confirmado)");
+    linhas.push("Estabilidade interna: "+paisAlvo.estabilidade+"% (confirmado)");
+  } else if(tier==="estimada"){
+    linhas.push("Tesouro: aproximadamente "+fmtNum(estimativa(paisAlvo.tesouro))+" moedas (estimativa, margem de erro)");
+    linhas.push("Exército: estimado em "+fmtNum(estimativa(paisAlvo.exercito.efetivo))+" soldados (estimativa)");
+    linhas.push("Estabilidade interna: parece estar em torno de "+estimativa(paisAlvo.estabilidade)+"% (estimativa)");
+  } else if(tier==="desconhecida"){
+    linhas.push("Os agentes não conseguiram trazer dados confiáveis desta vez.");
+  } else { // falsa
+    linhas.push("Tesouro: "+fmtNum(falso(paisAlvo.tesouro))+" moedas");
+    linhas.push("Exército: "+fmtNum(falso(paisAlvo.exercito.efetivo))+" soldados");
+    linhas.push("(atenção: esta operação foi comprometida — parte destes dados pode estar incorreta, e o Conselho não tem como saber qual parte)");
+  }
+  return {
+    alvoId: alvoId||null, alvoNome: paisAlvo.nome, ordemTexto: ordem.texto, confiabilidade: tier,
+    relatorio: linhas.join("\n")
+  };
+}
+
 async function refreshCountriesIndexFor(campaignId){
   var rows = await fsList("country:"+campaignId+":");
   state.countries = {};
