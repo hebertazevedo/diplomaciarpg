@@ -245,6 +245,7 @@ textarea.text-input{resize:vertical;}
 .diplo-card .dc-status.pendente{background:rgba(201,162,75,.15);color:var(--gold);}
 .diplo-card .dc-status.aceito{background:rgba(74,143,92,.15);color:#8fd39e;}
 .diplo-card .dc-status.recusado{background:rgba(192,72,63,.15);color:#e08a80;}
+.diplo-card .dc-status.guerra_ativa{background:rgba(192,72,63,.22);color:#e08a80;}
 
 .roll-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 18px;font-size:13px;z-index:200;box-shadow:0 10px 30px rgba(0,0,0,.4);}
 
@@ -258,6 +259,33 @@ textarea.text-input{resize:vertical;}
 .badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
 .mini-badge{font-size:11px;background:#20222a;border-radius:20px;padding:3px 9px;color:var(--ink-dim);}
 label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-dim);}
+
+/* ---- foco visível (auditoria #36) ---- */
+button:focus-visible,[role="button"]:focus-visible,.text-input:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{
+  outline:2px solid var(--gold); outline-offset:2px;
+}
+.period-card:focus-visible,.camp-card:focus-visible,.action-card:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+
+/* ---- navegação inferior no mobile (auditoria #37) ----
+   Seis abas no topo viram uma navegação ruim em telas estreitas.
+   Abaixo de 640px, escondemos a tabbar do topo e mostramos uma
+   bottom-nav fixa, ícone + rótulo curto, com safe-area do iOS. */
+#bottom-nav{display:none;}
+@media (max-width:640px){
+  #top-bar-game .tabbar{display:none;}
+  #bottom-nav{
+    display:flex; position:sticky; bottom:0; left:0; right:0; z-index:50;
+    background:linear-gradient(0deg,#141419,#181920); border-top:1px solid var(--line);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  #bottom-nav button{
+    flex:1; background:transparent; border:none; color:var(--ink-faint); cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 2px; font-size:10px; font-family:inherit;
+  }
+  #bottom-nav button .bn-ic{font-size:18px;}
+  #bottom-nav button.active{color:var(--gold);}
+  #layout{padding-bottom:0;}
+}
 </style>
 </head>
 <body>
@@ -306,8 +334,8 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
   <div class="hub-scroll">
     <div class="hub-header"><h1>Salão do Trono</h1><p>Escolha uma campanha ou funde um novo reino</p></div>
     <div class="action-grid">
-      <div class="action-card" id="hub-new-solo"><div class="glyph">👑</div><b>Nova campanha solo</b><span>Você governa, a IA simula o mundo inteiro em tempo real.</span></div>
-      <div class="action-card" id="hub-new-group"><div class="glyph">🏛️</div><b>Nova campanha em grupo</b><span>Vários Chefes de Estado, turnos diários assíncronos (00:01–20:00).</span></div>
+      <div class="action-card" id="hub-new-solo" role="button" tabindex="0" aria-label="Nova campanha solo"><div class="glyph">👑</div><b>Nova campanha solo</b><span>Você governa, a IA simula o mundo inteiro em tempo real.</span></div>
+      <div class="action-card" id="hub-new-group" role="button" tabindex="0" aria-label="Nova campanha em grupo"><div class="glyph">🏛️</div><b>Nova campanha em grupo</b><span>Vários Chefes de Estado, turnos diários assíncronos (00:01–20:00).</span></div>
     </div>
     <p class="adv-list-title">Suas campanhas</p>
     <div id="hub-camp-list"><p class="empty-note">Carregando…</p></div>
@@ -371,6 +399,8 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
         <div class="divider">atributos (D20) — 6 pontos para distribuir, base 10</div>
         <p class="points-left" id="attr-points-left">Pontos restantes: 6</p>
         <div class="attr-grid" id="attr-grid"></div>
+        <div class="divider">perícias — escolha até 3 (dão +2 no teste D20 de ordens relacionadas)</div>
+        <div class="badge-row" id="pericias-grid"></div>
         <div class="card-actions"><button class="secondary-btn" id="wz-to-1b">← Voltar</button><button class="primary-btn" id="wz-to-3">Continuar →</button></div>
       </div>
 
@@ -480,11 +510,21 @@ label.inline{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--
     </div>
 
   </div>
+
+  <nav id="bottom-nav" aria-label="Navegação da campanha">
+    <button data-tab="pais" class="active"><span class="bn-ic">🏰</span>País</button>
+    <button data-tab="ordens"><span class="bn-ic">📜</span>Ordens</button>
+    <button data-tab="diplomacia"><span class="bn-ic">🤝</span>Diplo</button>
+    <button data-tab="mundo"><span class="bn-ic">🌍</span>Mundo</button>
+    <button data-tab="historico"><span class="bn-ic">📖</span>Histórico</button>
+    <button data-tab="conselho"><span class="bn-ic">👑</span>Conselho</button>
+  </nav>
 </div>
 
 </div>
 
 <div id="toast-root"></div>
+<div id="modal-root"></div>
 <script>
 (function(){
 "use strict";
@@ -542,9 +582,44 @@ var PERICIAS = {
 
 var TIPOS_ORDEM = ["militar","diplomatica","economica","social","tecnologica","religiosa","administrativa","espionagem","comercial","infraestrutura"];
 
+/* =========================================================
+   CONFIGURAÇÃO DE ORDENS — ATRIBUTO + PERÍCIA + CD + CUSTO
+   Corrige a falha de auditoria "D20 não funciona como D20": antes,
+   toda ordem usava d20Test(14,12) fixo, o efeito era aplicado ANTES
+   do resultado importar, e perícias eram decorativas. Agora cada
+   ordem tem atributo/perícia que realmente entram no teste, CD
+   própria, e um custo em Capacidade Administrativa (RF-CAP) que
+   limita quantas ordens cabem no mês — sem isso, "encher o turno de
+   ordens baratas" era a estratégia ótima.
+   ========================================================= */
+var ORDENS_CONFIG = {
+  administrativa: {atributo:"int", pericia:"Administração", cd:12, custo:1},
+  economica:       {atributo:"int", pericia:"Finanças", cd:12, custo:1},
+  social:          {atributo:"car", pericia:"Opinião pública", cd:12, custo:1},
+  comercial:       {atributo:"car", pericia:"Comércio", cd:12, custo:1},
+  militar:         {atributo:"for", pericia:"Estratégia militar", cd:13, custo:2},
+  espionagem:      {atributo:"des", pericia:"Inteligência", cd:14, custo:2},
+  diplomatica:     {atributo:"sab", pericia:"Negociação", cd:12, custo:1},
+  tecnologica:     {atributo:"int", pericia:"Desenvolvimento", cd:14, custo:3},
+  religiosa:       {atributo:"sab", pericia:"Religião", cd:11, custo:1},
+  infraestrutura:  {atributo:"con", pericia:"Gestão de recursos", cd:15, custo:3}
+};
+/* Capacidade administrativa mensal — quantas ordens um país consegue
+   processar por mês. Cresce um pouco com infraestrutura/tecnologia,
+   para que desenvolver o país também amplie o que o Chefe consegue
+   fazer. Base 6, igual ao exemplo da auditoria. */
+function capacidadeAdministrativaDe(c){
+  var extra = Math.floor((c.infraestrutura||0)/25) + Math.floor((c.tecnologia||0)/4);
+  var gm = govMod(c.governo);
+  return Math.max(3, 6 + extra + (gm.capacidadeExtra||0));
+}
+function custoOrdensAtuais(ordens){
+  return (ordens||[]).reduce(function(s,o){ return s + ((ORDENS_CONFIG[o.tipo]||{custo:1}).custo); }, 0);
+}
+
 var JANELA_FECHAMENTO_H = 20; // 20:00 local — fim da janela de ordens (RF-012)
 var JANELA_PROCESSAMENTO_H = 0; var JANELA_PROCESSAMENTO_M = 1; // 00:01 (RF-013)
-var LOCK_TTL_MS = 30000;
+var LOCK_TTL_MS = 45000; // com heartbeat (ver startLockHeartbeat), a margem real é bem maior
 
 /* =========================================================
    FIRESTORE — armazenamento chave/valor genérico (coleção "kv")
@@ -656,6 +731,17 @@ async function acquireLock(key){
   }catch(e){ return false; }
 }
 async function releaseLock(key){ await fsPut(key, null); }
+/* Renova o lock periodicamente enquanto a resolução do turno está em
+   andamento (auditoria #3: o TTL fixo de 30s era menor que o tempo
+   real de resolver vários países em sequência, cada um com timeout de
+   até 25s no Gemini — o lock expirava no meio do processamento e uma
+   segunda execução podia começar, duplicando tesouro/eventos). Um
+   heartbeat a cada 10s mantém o lock vivo enquanto o processo real
+   está de fato rodando; se o processo cair, o lock expira normalmente
+   depois de LOCK_TTL_MS sem heartbeat. */
+function startLockHeartbeat(key){
+  return setInterval(function(){ fsPut(key, {lockedAt:Date.now(), by:(session.email||"?")}); }, Math.round(LOCK_TTL_MS*0.4));
+}
 
 /* =========================================================
    CHAMADA AO GEMINI — narrador/conselho (RF-038, RF-039, RF-045)
@@ -789,6 +875,63 @@ function toast(msg, ms){
   el("toast-root").appendChild(t);
   setTimeout(function(){ t.remove(); }, ms||3200);
 }
+/* =========================================================
+   MODAIS ACESSÍVEIS — substituem prompt()/confirm() do navegador
+   (auditoria #35: "experiência de protótipo"). Focam o campo ao abrir,
+   fecham com Esc, e usam <button>/<input> reais (teclado + leitor de
+   tela funcionam, ao contrário de divs com cursor:pointer — #36).
+   ========================================================= */
+function openModal(opts){
+  return new Promise(function(resolve){
+    var root = el("modal-root");
+    var overlay = document.createElement("div"); overlay.className = "modal-overlay";
+    var box = document.createElement("div"); box.className = "modal-box"; box.setAttribute("role","dialog"); box.setAttribute("aria-modal","true");
+    box.innerHTML =
+      "<div class='modal-head'><h3>"+esc(opts.title||"")+"</h3></div>"+
+      "<div class='modal-body'>"+(opts.bodyHtml||"")+"</div>"+
+      "<div class='modal-actions'>"+
+        "<button class='secondary-btn' id='modal-cancel' type='button'>"+esc(opts.cancelLabel||"Cancelar")+"</button>"+
+        "<button class='"+(opts.danger?"danger-btn":"primary-btn")+"' id='modal-ok' type='button'>"+esc(opts.okLabel||"Confirmar")+"</button>"+
+      "</div>";
+    overlay.appendChild(box); root.appendChild(overlay);
+    function close(val){ overlay.remove(); document.removeEventListener("keydown", onKey); resolve(val); }
+    function onKey(ev){ if(ev.key==="Escape") close(null); }
+    document.addEventListener("keydown", onKey);
+    overlay.addEventListener("click", function(ev){ if(ev.target===overlay) close(null); });
+    box.querySelector("#modal-cancel").addEventListener("click", function(){ close(null); });
+    box.querySelector("#modal-ok").addEventListener("click", function(){ close(opts.onOk ? opts.onOk(box) : true); });
+    var autofocus = box.querySelector("[autofocus]") || box.querySelector("input,textarea");
+    if(autofocus) autofocus.focus();
+  });
+}
+/* Substitui prompt(label, defaultVal) por um modal com <input> real. */
+function promptModal(label, defaultVal){
+  return openModal({
+    title: label,
+    bodyHtml: "<div class='field'><input id='modal-input' class='text-input' autofocus value='"+esc(defaultVal||"")+"'></div>",
+    okLabel: "OK",
+    onOk: function(box){ return box.querySelector("#modal-input").value; }
+  });
+}
+/* Substitui confirm() por um modal real, com ação destrutiva destacada. */
+function confirmModal(message, okLabel){
+  return openModal({
+    title: "Confirmar ação", danger:true,
+    bodyHtml: "<p style='margin:0;'>"+esc(message)+"</p>",
+    okLabel: okLabel||"Confirmar",
+    onOk: function(){ return true; }
+  }).then(function(v){ return !!v; });
+}
+/* Acessibilidade (auditoria #36): cards clicáveis feitos com <div> não
+   respondem a teclado/leitor de tela. Este helper adiciona role="button",
+   tabindex e suporte a Enter/Espaço a qualquer elemento clicável. */
+function makeClickable(elm, label){
+  elm.setAttribute("role","button"); elm.setAttribute("tabindex","0");
+  if(label) elm.setAttribute("aria-label", label);
+  elm.addEventListener("keydown", function(ev){
+    if(ev.key==="Enter" || ev.key===" "){ ev.preventDefault(); elm.click(); }
+  });
+}
 function keyStoreId(email){ return "diplomacia-gemini-key:"+String(email||"").toLowerCase(); }
 function savedKeyFor(email){ try{ return localStorage.getItem(keyStoreId(email)); }catch(e){ return null; } }
 function saveKeyFor(email,key){ try{ localStorage.setItem(keyStoreId(email), key); }catch(e){} }
@@ -847,15 +990,40 @@ async function logout(){
    ========================================================= */
 function rollD20(){ return 1 + Math.floor(Math.random()*20); }
 function attrMod(score){ return Math.floor((score-10)/2); }
-function d20Test(attrScore, cd){
+/* Teste "cru": recebe o modificador total já somado (atributo + perícia
+   + outros bônus) em vez de um score bruto — usado pelo motor de ordens,
+   que precisa combinar atributo do chefe com a perícia relevante. */
+function d20TestMod(mod, cd){
   var roll = rollD20();
-  var mod = attrMod(attrScore);
   var total = roll + mod;
   var grau = "fracasso";
   if(roll===20 || total >= cd+10) grau = "sucesso critico";
   else if(roll===1 || total <= cd-10) grau = "fracasso critico";
   else if(total >= cd) grau = "sucesso";
   return {roll:roll, mod:mod, total:total, cd:cd, grau:grau};
+}
+/* Mantido por compatibilidade — recebe o score do atributo (8-18) em
+   vez do modificador já calculado. Usado onde não há perícia associada
+   (ex.: espionagem, sem chefe carregado). */
+function d20Test(attrScore, cd){ return d20TestMod(attrMod(attrScore), cd); }
+/* Calcula o modificador total de um chefe de Estado para um tipo de
+   ordem: atributo relevante + bônus por ter a perícia correspondente.
+   perfilLideranca (países IA sem ficha de atributos D20) é convertido
+   numa aproximação razoável a partir dos traços de liderança. */
+function modificadorOrdem(chefe, pais, tipo){
+  var cfg = ORDENS_CONFIG[tipo] || ORDENS_CONFIG.administrativa;
+  if(chefe && chefe.atributos){
+    var score = chefe.atributos[cfg.atributo] || 10;
+    var mod = attrMod(score);
+    var temPericia = Array.isArray(chefe.pericias) && chefe.pericias.indexOf(cfg.pericia)!==-1;
+    if(temPericia) mod += 2; // bônus de treinamento — perícia deixa de ser decorativa
+    return mod;
+  }
+  // País IA sem ficha de chefe: aproxima o modificador pelo perfil de liderança
+  var p = (pais && pais.perfilLideranca) || {};
+  var base = { for:p.agressividade, des:p.diplomacia, con:p.autoritarismo, int:p.ambicaoEconomica, sab:p.diplomacia, car:p.diplomacia }[cfg.atributo];
+  base = base===undefined ? 50 : base;
+  return Math.round((base-50)/12); // ~-4..+4
 }
 
 /* =========================================================
@@ -883,6 +1051,7 @@ async function refreshHubCampaigns(){
       "<div class='cc-sub'>"+esc(per?per.label:c.periodoHistorico)+" · "+esc(c.dataAtual||"")+" · "+(c.mode==="grupo"?"Grupo ("+c.members.length+" chefes)":"Solo")+"</div></div>"+
       "<span class='cc-badge "+(c.status==="ativa"?"open":"closed")+"'>"+esc(c.status||"ativa")+"</span>";
     d.addEventListener("click", function(){ enterCampaign(c.id); });
+    makeClickable(d, "Entrar na campanha "+c.name);
     box.appendChild(d);
   });
 }
@@ -934,7 +1103,8 @@ async function refreshAdminPanel(){
   box.querySelectorAll("button[data-del]").forEach(function(btn){
     btn.addEventListener("click", async function(){
       var id = btn.getAttribute("data-del");
-      if(!confirm("Excluir a campanha "+id+" e todos os dados associados? Isso não pode ser desfeito.")) return;
+      var ok = await confirmModal("Excluir a campanha "+id+" e todos os dados associados? Isso não pode ser desfeito.", "Excluir");
+      if(!ok) return;
       await excluirCampanha(id);
       toast("Campanha excluída.");
       refreshAdminPanel();
@@ -954,27 +1124,54 @@ async function excluirCampanha(campaignId){
 var wizardMode = "solo";
 el("hub-new-solo").addEventListener("click", function(){ wizardMode="solo"; openWizard(); });
 el("hub-new-group").addEventListener("click", function(){ wizardMode="grupo"; openWizard(); });
+makeClickable(el("hub-new-solo")); makeClickable(el("hub-new-group"));
 el("hub-logout").addEventListener("click", logout);
-el("hub-key").addEventListener("click", function(){
-  var novo = prompt("Nova chave de API do Gemini:", session.apiKey||"");
+el("hub-key").addEventListener("click", async function(){
+  var novo = await promptModal("Nova chave de API do Gemini", session.apiKey||"");
   if(novo){ session.apiKey = novo.trim(); saveKeyFor(session.email, session.apiKey); toast("Chave atualizada."); }
 });
 
 /* =========================================================
    WIZARD — RF-001 (período), RF-003 (chefe), RF-005 (país)
    ========================================================= */
-var wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[] };
+var wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[], pericias:[] };
 var WZ_POINTS_TOTAL = 6;
+var WZ_PERICIAS_MAX = 3;
 
 function openWizard(){
-  wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[] };
+  wz = { periodo:null, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[], pericias:[] };
   el("wizard-title").textContent = wizardMode==="grupo" ? "Fundar campanha em grupo" : "Fundar reino (solo)";
+  el("wz-panel-1").classList.remove("hidden"); el("wz-to-1b").classList.remove("hidden");
   el("wz-invite-field").classList.toggle("hidden", wizardMode!=="grupo");
   el("wz-invites").innerHTML = "";
   renderPeriodGrid();
   renderAttrGrid();
+  renderPericiasGrid();
   wzGoStep(1);
   showView("wizard");
+}
+function renderPericiasGrid(){
+  var box = el("pericias-grid"); box.innerHTML = "";
+  Object.keys(PERICIAS).forEach(function(cat){
+    PERICIAS[cat].forEach(function(nome){
+      var sel = wz.pericias.indexOf(nome)!==-1;
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "mini-badge"; b.style.cursor = "pointer";
+      b.style.border = "1px solid "+(sel?"var(--gold)":"var(--line)");
+      b.style.background = sel ? "rgba(201,162,75,.18)" : "#20222a";
+      b.style.color = sel ? "var(--gold)" : "var(--ink-dim)";
+      b.textContent = (sel?"✓ ":"")+nome+" ("+cat+")";
+      b.setAttribute("aria-pressed", sel?"true":"false");
+      b.addEventListener("click", function(){
+        var n = this.textContent.replace(/^✓ /,"").replace(/ \([^)]+\)$/,"");
+        var idx = wz.pericias.indexOf(n);
+        if(idx!==-1){ wz.pericias.splice(idx,1); }
+        else{ if(wz.pericias.length>=WZ_PERICIAS_MAX){ toast("Máximo de "+WZ_PERICIAS_MAX+" perícias."); return; } wz.pericias.push(n); }
+        renderPericiasGrid();
+      });
+      box.appendChild(b);
+    });
+  });
 }
 el("wizard-back").addEventListener("click", function(){ showView("hub"); refreshHubCampaigns(); });
 
@@ -985,6 +1182,7 @@ function renderPeriodGrid(){
     var d = document.createElement("div"); d.className="period-card"+(wz.periodo===key?" selected":"");
     d.innerHTML = "<b>"+p.label+"</b><div class='yr'>"+p.faixa+"</div><p>"+p.desc+"</p>";
     d.addEventListener("click", function(){ wz.periodo = key; renderPeriodGrid(); el("wz-to-2").disabled = !(wz.periodo && el("wz-camp-name").value.trim()); });
+    makeClickable(d, "Selecionar período "+p.label);
     grid.appendChild(d);
   });
 }
@@ -1052,24 +1250,47 @@ function populateGovernoSelect(){
    (RF-005/RF-025/RF-026/RF-006). A IA não participa disto: os
    números de partida vêm só do período histórico + população.
    ========================================================= */
+/* =========================================================
+   IMPACTO DO GOVERNO NO GAMEPLAY (auditoria #29) — antes, o tipo de
+   governo só influenciava o perfil de liderança gerado para países
+   IA; para o jogador, era decoração. Agora cada forma de governo dá
+   modificadores reais: estabilidade/legitimidade/comércio iniciais,
+   capacidade administrativa (velocidade de decisão) e deriva mensal.
+   ========================================================= */
+var GOVERNO_MODIFICADORES = {
+  "República":              {legitimidade:+8, comercio:+6, capacidadeExtra:-1},
+  "Democracia":              {legitimidade:+10, felicidade:+5, capacidadeExtra:-1},
+  "Ditadura":                {capacidadeExtra:+2, estabilidadeMensal:-0.4, felicidadeMensal:-0.4},
+  "Monarquia":               {estabilidade:+8, legitimidade:+5},
+  "Monarquia Constitucional":{estabilidade:+6, legitimidade:+6, comercio:+3},
+  "Império":                 {estabilidade:+5, capacidadeExtra:+1},
+  "Teocracia":               {estabilidade:+8, felicidade:-3, capacidadeExtra:-1},
+  "Feudal":                  {estabilidade:+4, comercio:-5},
+  "Cidade-Estado":           {comercio:+10, capacidadeExtra:-1},
+  "Confederação":            {legitimidade:+4, capacidadeExtra:-2},
+  "Tribal":                  {felicidade:+5, comercio:-8}
+};
+function govMod(governo){ return GOVERNO_MODIFICADORES[governo] || {}; }
+
 function gerarPaisInicial(periodoKey, nomePais, capital, governo, populacao, descricaoLivre){
   var per = PERIODOS[periodoKey];
   var pop = Math.max(10000, Math.round(populacao)||500000);
   var tesouro = Math.round(per.tesouroBase * (pop/500000));
   var receita = Math.round(tesouro*0.12);
   var despesas = Math.round(receita*0.85);
+  var gm = govMod(governo);
   return {
     nome: nomePais, capital: capital, governo: governo, descricaoLivre: descricaoLivre||"",
     populacaoTotal: pop,
     populacaoGrupos: gerarGruposPopulacionais(pop, periodoKey),
     territorio: { cidades:[capital], regioes:[] },
     tesouro: tesouro, receita: receita, despesas: despesas, divida:0, inflacao:2,
-    producao: Math.round(per.producaoBase*100), consumo: Math.round(per.producaoBase*95), comercio: 50,
+    producao: Math.round(per.producaoBase*100), consumo: Math.round(per.producaoBase*95), comercio: clamp(50+(gm.comercio||0)),
     importacoes:[], exportacoes:[], recursosEstrategicos:[],
     exercito: { efetivo: Math.round(pop*0.01), treinamento:50, moral:70, equipamento:50, tecnologia:per.tecNivel*20, logistica:50, comando:"Chefe de Estado" },
     marinha: { efetivo: Math.round(pop*0.002), tecnologia:per.tecNivel*20 },
     tecnologia: per.tecNivel*20,
-    estabilidade:65, legitimidade:70, felicidade:60, pobreza:35, educacao:30, saude:30,
+    estabilidade:clamp(65+(gm.estabilidade||0)), legitimidade:clamp(70+(gm.legitimidade||0)), felicidade:clamp(60+(gm.felicidade||0)), pobreza:35, educacao:30, saude:30,
     religiao:"não definida", cultura:"não definida", infraestrutura:35,
     periodoHistorico: periodoKey
   };
@@ -1223,6 +1444,22 @@ function gerarRespostaTextoIA(paisAlvo, proposta, aceito){
   return mapa[proposta.tipo] || (aceito ? "A proposta foi aceita após deliberação do Conselho de "+paisAlvo.nome+"." : "A proposta foi recusada pelo Conselho de "+paisAlvo.nome+".");
 }
 
+/* Fluxo de entrada num convite (auditoria #4): reaproveita os passos 2
+   (chefe) e 3 (país) do wizard, pulando o passo 1 (período já é fixo
+   pela campanha existente). wz.joinCampaignId marca o modo "entrar". */
+function openJoinWizard(campaignId, campaign){
+  wz = { periodo: campaign.periodoHistorico, atributos:{for:10,des:10,con:10,int:10,sab:10,car:10}, invites:[], pericias:[], joinCampaignId: campaignId };
+  el("wizard-title").textContent = "Fundar seu país em: "+campaign.name;
+  el("wz-invite-field").classList.add("hidden");
+  renderAttrGrid();
+  renderPericiasGrid();
+  populateGovernoSelect();
+  el("wz-panel-1").classList.add("hidden");
+  el("wz-to-1b").classList.add("hidden");
+  wzGoStep(2);
+  el("wizard-sub").textContent = "Você foi convidado — crie seu Chefe de Estado e funde seu país nesta campanha.";
+  showView("wizard");
+}
 el("wz-finish").addEventListener("click", async function(){
   var nome = el("pais-nome").value.trim();
   var capital = el("pais-capital").value.trim();
@@ -1235,6 +1472,31 @@ el("wz-finish").addEventListener("click", async function(){
   el("wz-error").classList.add("hidden");
   el("wz-finish").disabled = true; el("wz-finish").textContent = "Fundando reino…";
   try{
+    if(wz.joinCampaignId){
+      var campaignId2 = wz.joinCampaignId;
+      var camp2 = await fsGet("campaign:"+campaignId2);
+      if(!camp2){ throw new Error("Campanha não encontrada."); }
+      var countryId2 = "pais_"+Math.random().toString(36).slice(2,8);
+      var pais2 = gerarPaisInicial(wz.periodo, nome, capital, governo, pop, el("pais-desc").value.trim());
+      var chefe2 = {
+        nome: chefeNome, titulo: el("chefe-titulo").value.trim()||"Chefe de Estado",
+        dinastia: el("chefe-dinastia").value.trim(), legitimidadeOrigem: el("chefe-legitimidade").value,
+        pais: capital, countryId: countryId2, atributos: Object.assign({}, wz.atributos),
+        pericias: wz.pericias.slice(), vivo:true, email: session.email
+      };
+      camp2.countryOfMember = camp2.countryOfMember || {};
+      camp2.countryOfMember[session.email] = countryId2;
+      if(camp2.members.indexOf(session.email)===-1) camp2.members.push(session.email);
+      camp2.updatedAt = Date.now();
+      await fsPut("campaign:"+campaignId2, camp2);
+      await fsPut("country:"+campaignId2+":"+countryId2, pais2);
+      await fsPut("leader:"+campaignId2+":"+session.email, chefe2);
+      await fsPut("orders:"+campaignId2+":"+countryId2+":"+camp2.dataAtual, []);
+      await appendEvent(campaignId2, camp2.dataAtual, nome+" é fundado sob o governo de "+chefeNome+" ("+governo+") e se junta à campanha.", "fundacao");
+      toast("Reino fundado! Bem-vindo ao trono.");
+      await enterCampaign(campaignId2);
+      return;
+    }
     var campaignId = "camp_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8);
     var countryId = "pais_"+Math.random().toString(36).slice(2,8);
     var per = PERIODOS[wz.periodo];
@@ -1260,7 +1522,7 @@ el("wz-finish").addEventListener("click", async function(){
       nome: chefeNome, titulo: el("chefe-titulo").value.trim()||"Chefe de Estado",
       dinastia: el("chefe-dinastia").value.trim(), legitimidadeOrigem: el("chefe-legitimidade").value,
       pais: capital, countryId: countryId, atributos: Object.assign({}, wz.atributos),
-      pericias: [], vivo:true, email: session.email
+      pericias: wz.pericias.slice(), vivo:true, email: session.email
     };
 
     await fsPut("campaign:"+campaignId, campaign);
@@ -1311,6 +1573,14 @@ async function enterCampaign(campaignId){
   state.isObserver = state.campaign.members.indexOf(session.email)===-1;
   if(state.isObserver && !session.isAdmin){ toast("Você não faz parte desta campanha."); showView("hub"); return; }
   state.myCountryId = state.isObserver ? null : state.campaign.countryOfMember[session.email];
+  // Correção de auditoria #4: um convidado pode ser membro válido da
+  // campanha e ainda não ter país (o botão de convite só adiciona o
+  // e-mail à lista de membros — não fundava um país automaticamente).
+  // Antes disso deixava o jogador "preso" sem fluxo para criar o país.
+  if(!state.isObserver && state.campaign.mode==="grupo" && !state.myCountryId){
+    openJoinWizard(campaignId, state.campaign);
+    return;
+  }
   state.myLeader = state.isObserver ? null : await fsGet("leader:"+campaignId+":"+session.email);
   await refreshCountriesIndex();
   state.myCountry = state.myCountryId ? state.countries[state.myCountryId] : null;
@@ -1352,7 +1622,7 @@ el("game-back").addEventListener("click", function(){
   showView("hub"); refreshHubCampaigns();
 });
 el("game-invite").addEventListener("click", async function(){
-  var email = prompt("E-mail do novo Chefe de Estado a convidar:");
+  var email = await promptModal("E-mail do novo Chefe de Estado a convidar", "");
   if(!email) return;
   email = email.trim().toLowerCase();
   var camp = state.campaign;
@@ -1362,11 +1632,11 @@ el("game-invite").addEventListener("click", async function(){
   toast("Convite registrado — quando "+email+" entrar, poderá fundar o país dele nesta campanha.");
 });
 
-document.querySelectorAll("#tabbar button").forEach(function(btn){
+document.querySelectorAll("#tabbar button, #bottom-nav button").forEach(function(btn){
   btn.addEventListener("click", function(){ switchGameTab(btn.getAttribute("data-tab")); });
 });
 function switchGameTab(name){
-  document.querySelectorAll("#tabbar button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===name); });
+  document.querySelectorAll("#tabbar button, #bottom-nav button").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-tab")===name); });
   document.querySelectorAll(".gtab").forEach(function(t){ t.classList.remove("active"); });
   el("gtab-"+name).classList.add("active");
   if(name==="pais") renderPaisPanel();
@@ -1386,6 +1656,7 @@ function renderPaisPanel(){
     return;
   }
   var html = "";
+  html += renderEstadoDoReino(c);
   html += "<div class='stat-panel'><h3>"+esc(c.nome)+" — "+esc(c.governo)+"</h3>";
   html += "<div class='stat-grid'>"+
     statItem("Capital", c.capital)+
@@ -1417,6 +1688,30 @@ function renderPaisPanel(){
   el("pais-panel-content").innerHTML = html;
 }
 function statItem(label, val){ return "<div class='stat-item'><div class='sl'>"+esc(label)+"</div><div class='sv'>"+esc(val)+"</div></div>"; }
+
+/* ---- "Estado do Reino" — resumo no topo do painel (auditoria #26/#27):
+   responde de cara "estou indo bem?", "o que está me ameaçando?",
+   "o que posso fazer agora?" em vez de só uma lista de números crus. */
+function renderEstadoDoReino(c){
+  var deficit = (c.receita||0) < (c.despesas||0);
+  var alertas = [];
+  var oportunidades = [];
+  if(deficit) alertas.push("Déficit no orçamento — despesas acima da receita.");
+  if(c.tesouro < (c.despesas||0)*2) alertas.push("Tesouro baixo — poucos meses de reserva no ritmo atual.");
+  if(c.estabilidade < 35) alertas.push("Estabilidade baixa — risco de crises internas.");
+  if(c.felicidade < 35) alertas.push("Felicidade popular baixa.");
+  var revoltaMax = (c.populacaoGrupos||[]).reduce(function(m,g){ return Math.max(m, g.propensaoRevolta||0); }, 0);
+  if(revoltaMax >= 55) alertas.push("Um grupo social com alta propensão a revolta.");
+  if(c.comercio>=60) oportunidades.push("Comércio forte — bom momento para acordos comerciais.");
+  if(c.tecnologia>=(PERIODOS[state.campaign.periodoHistorico].tecNivel*2)) oportunidades.push("Tecnologia acima da média do período.");
+  if(!alertas.length) oportunidades.push("Nenhuma crise aparente — bom momento para investir em longo prazo.");
+  var status = alertas.length>=2 ? {cor:"#e08a80",label:"🔴 Em risco"} : alertas.length===1 ? {cor:"#e0b96b",label:"🟡 Atenção"} : {cor:"#8fd39e",label:"🟢 Estável"};
+  var html = "<div class='stat-panel' style='border-color:"+status.cor+";'><h3 style='color:"+status.cor+";'>Estado do Reino — "+status.label+"</h3>";
+  if(alertas.length){ html += "<div style='margin-bottom:8px;'>"+alertas.map(function(a){return "<div style='font-size:13px;color:#e0b96b;'>⚠ "+esc(a)+"</div>";}).join("")+"</div>"; }
+  if(oportunidades.length){ html += "<div>"+oportunidades.map(function(o){return "<div style='font-size:13px;color:#8fd39e;'>✓ "+esc(o)+"</div>";}).join("")+"</div>"; }
+  html += "</div>";
+  return html;
+}
 function fmtNum(n){ n = Math.round(n||0); return n.toLocaleString("pt-BR"); }
 
 /* ---- Ordens (RF-015 / RF-016) ---- */
@@ -1441,12 +1736,19 @@ async function renderOrdensTab(){
   }
   var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
   var ordens = (await fsGet(ordersKey)) || [];
+  var capacidade = capacidadeAdministrativaDe(state.myCountry||{});
+  var usada = custoOrdensAtuais(ordens);
+  var capBox = el("ordens-capacidade");
+  if(!capBox){ capBox = document.createElement("div"); capBox.id = "ordens-capacidade"; capBox.className = "small-note"; el("turn-banner-ordens").insertAdjacentElement("afterend", capBox); }
+  capBox.style.margin = "0 0 12px";
+  capBox.innerHTML = "Capacidade administrativa: <b>"+usada+" / "+capacidade+"</b> usada este mês (cada tipo de ordem custa 1 a 3 — ver custo ao lado do tipo escolhido).";
   var list = el("ordens-list"); list.innerHTML = "";
   if(!ordens.length){ list.innerHTML = "<p class='empty-note'>Nenhuma ordem enviada para este mês ainda.</p>"; }
   ordens.forEach(function(o, idx){
     var d = document.createElement("div"); d.className="order-list-item";
     var alvoTxt = o.alvo && state.countries[o.alvo] ? " → alvo: "+esc(state.countries[o.alvo].nome) : "";
-    d.innerHTML = "<div><div class='ot'>"+esc(o.tipo)+alvoTxt+(o.secreta?" <span class='secret-tag'>SECRETA</span>":"")+"</div><div class='oc'>"+esc(o.texto)+"</div></div>"+
+    var custoTxt = " · custo "+((ORDENS_CONFIG[o.tipo]||{custo:1}).custo);
+    d.innerHTML = "<div><div class='ot'>"+esc(o.tipo)+custoTxt+alvoTxt+(o.secreta?" <span class='secret-tag'>SECRETA</span>":"")+"</div><div class='oc'>"+esc(o.texto)+"</div></div>"+
       "<button class='ghost-btn' data-idx='"+idx+"'>Remover</button>";
     d.querySelector("button").addEventListener("click", async function(){
       ordens.splice(idx,1); await fsPut(ordersKey, ordens); renderOrdensTab();
@@ -1469,6 +1771,13 @@ el("ord-tipo").addEventListener("change", function(){
 });
 el("ord-add").addEventListener("click", async function(){
   if(state.isObserver){ toast("Modo observador — sem país próprio."); return; }
+  // RF-018-bugfix: o turno precisa estar aberto para aceitar novas ordens
+  // (antes, ordens podiam ser adicionadas mesmo depois do fechamento).
+  var turnoAgora = await fsGet("turn:"+state.campaignId+":"+currentTurnKey());
+  if(state.campaign.mode==="grupo" && turnoAgora && turnoAgora.status!=="ABERTO"){
+    toast("As ordens deste mês já foram encerradas — aguarde a resolução do turno.");
+    return;
+  }
   var texto = el("ord-texto").value.trim();
   if(!texto){ toast("Descreva a ordem."); return; }
   var tipo = el("ord-tipo").value;
@@ -1476,6 +1785,14 @@ el("ord-add").addEventListener("click", async function(){
   if(isEsp && !el("ord-alvo").value){ toast("Escolha o país-alvo da operação de espionagem."); return; }
   var ordersKey = "orders:"+state.campaignId+":"+state.myCountryId+":"+currentTurnKey();
   var ordens = (await fsGet(ordersKey)) || [];
+  // RF-CAP: capacidade administrativa — impede "encher o turno de ordens baratas".
+  var capacidade = capacidadeAdministrativaDe(state.myCountry||{});
+  var usada = custoOrdensAtuais(ordens);
+  var custoNova = (ORDENS_CONFIG[tipo]||{custo:1}).custo;
+  if(usada + custoNova > capacidade){
+    toast("Capacidade administrativa esgotada este mês ("+usada+"/"+capacidade+" usada — esta ordem custaria "+custoNova+").");
+    return;
+  }
   var nova = { tipo: tipo, texto: texto, secreta: isEsp || el("ord-secreta").checked, criadaEm: Date.now(), autor: session.email };
   if(isEsp) nova.alvo = el("ord-alvo").value;
   ordens.push(nova);
@@ -1520,12 +1837,14 @@ async function loadDiplomacyList(){
       d.querySelectorAll("button[data-a]").forEach(function(btn){
         btn.addEventListener("click", async function(){
           var status = btn.getAttribute("data-a");
-          var msg = prompt((status==="aceito"?"Mensagem ao aceitar (opcional):":"Mensagem ao recusar (opcional):"), "");
+          var msg = await promptModal((status==="aceito"?"Mensagem ao aceitar (opcional)":"Mensagem ao recusar (opcional)"), "");
           var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
           var target = all.filter(function(x){return x.id===p.id;})[0];
           if(target){ target.status = status; target.respondidaEm = Date.now(); target.respostaTexto = (msg&&msg.trim()) || (status==="aceito"?"Proposta aceita.":"Proposta recusada."); }
           await fsPut("diplomacy:"+state.campaignId, all);
+          if(status==="aceito"){ await aplicarEfeitoDiplomacia(state.campaignId, p.fromCountry, p.toCountry, p.tipo); }
           await appendEvent(state.campaignId, currentTurnKey(), (target.status==="aceito"?"Aceita":"Recusada")+": proposta de "+p.tipo+" entre "+esc(state.myCountry.nome)+" e "+esc(otherName)+". \""+esc(target.respostaTexto)+"\"", "diplomacia");
+          renderPaisPanel(); renderMundoPanel();
           loadDiplomacyList();
         });
       });
@@ -1537,13 +1856,25 @@ el("diplo-send").addEventListener("click", async function(){
   if(state.isObserver){ toast("Modo observador — sem país próprio."); return; }
   var alvo = el("diplo-alvo").value; var texto = el("diplo-texto").value.trim();
   if(!alvo || !texto){ toast("Escolha um destinatário e escreva os termos."); return; }
+  var tipo = el("diplo-tipo").value;
+  var isGuerra = tipo==="declaracao_guerra";
+  // Correção de auditoria: uma declaração de guerra não é algo que o
+  // outro lado "aceita" — o estado de guerra passa a existir assim que
+  // é declarada. O outro país só pode reagir depois (paz, mobilização…).
   var all = (await fsGet("diplomacy:"+state.campaignId)) || [];
-  all.push({ id:"d_"+Date.now().toString(36), fromCountry: state.myCountryId, toCountry: alvo,
-    tipo: el("diplo-tipo").value, texto: texto, status:"pendente", criadaEm: Date.now(), turno: currentTurnKey() });
+  var registro = { id:"d_"+Date.now().toString(36), fromCountry: state.myCountryId, toCountry: alvo,
+    tipo: tipo, texto: texto, status: isGuerra?"guerra_ativa":"pendente", criadaEm: Date.now(), turno: currentTurnKey() };
+  if(isGuerra) registro.respondidaEm = Date.now();
+  all.push(registro);
   await fsPut("diplomacy:"+state.campaignId, all);
+  if(isGuerra){
+    await aplicarEfeitoDiplomacia(state.campaignId, state.myCountryId, alvo, tipo);
+    await appendEvent(state.campaignId, currentTurnKey(), esc(state.myCountry.nome)+" declara guerra a "+esc((state.countries[alvo]||{}).nome||"?")+". O estado de guerra entra em vigor imediatamente.", "diplomacia");
+    renderPaisPanel(); renderMundoPanel();
+  }
   el("diplo-texto").value="";
   loadDiplomacyList();
-  toast("Proposta enviada — a negociação é assíncrona, o outro chefe responde quando entrar (RF-018).");
+  toast(isGuerra ? "Guerra declarada — o estado de guerra já está em vigor." : "Proposta enviada — a negociação é assíncrona, o outro chefe responde quando entrar (RF-018).");
 });
 
 /* ---- Mundo (RF-019 fog of war simplificado) ---- */
@@ -1559,6 +1890,14 @@ async function renderMundoPanel(){
       "<span>"+(mine ? ("tesouro "+fmtNum(c.tesouro)) : "informação limitada (fog of war)")+"</span></div>";
   });
   html += "</div>";
+  if(state.myCountry && state.myCountry.relacoes && Object.keys(state.myCountry.relacoes).length){
+    html += "<div class='stat-panel'><h3>Relações de "+esc(state.myCountry.nome)+"</h3>";
+    Object.keys(state.myCountry.relacoes).forEach(function(oid){
+      var rel = state.myCountry.relacoes[oid]; var outro = state.countries[oid];
+      html += "<div class='pop-row'><span>"+esc(outro?outro.nome:oid)+"</span><span>"+esc(labelRelacao(rel.estado))+"</span></div>";
+    });
+    html += "</div>";
+  }
   if(ids.length<=1){
     html += "<div class='stat-panel'><p class='small-note' style='margin:0 0 10px;'>Esta campanha ainda não tem países vizinhos registrados (ela pode ter sido criada antes desse recurso).</p>"+
       "<button class='secondary-btn' id='btn-gerar-vizinhos'>Gerar países vizinhos agora</button></div>";
@@ -1673,19 +2012,94 @@ el("chat-form").addEventListener("submit", async function(ev){
    Sequência: ORDENS -> VALIDAÇÃO -> MOTOR ECONÔMICO/POPULACIONAL/
    MILITAR -> D20 -> CONSOLIDAÇÃO -> IA NARRA (a IA nunca decide números)
    ========================================================= */
+/* Cada efeito agora recebe "fator" (0 a ~1.6), que escala o benefício
+   de acordo com o grau do teste D20 (ver FATOR_POR_GRAU). O custo em
+   tesouro é sempre cobrado (a tentativa consome recursos mesmo quando
+   falha), mas o benefício só aparece de verdade em caso de sucesso —
+   corrige a falha "efeito aplicado antes do resultado importar". */
 var EFEITOS_ORDEM = {
-  economica:    function(c){ var g=Math.round(c.receita*0.10); c.tesouro+=g; c.estabilidade-=1; bumpPop(c,-3,-1); return "arrecadação ajustada (+"+g+" ao tesouro)"; },
-  militar:      function(c){ c.exercito.treinamento=clamp(c.exercito.treinamento+5); var custo=Math.round(c.tesouro*0.05); c.tesouro-=custo; return "treinamento militar reforçado (-"+custo+" do tesouro)"; },
-  social:       function(c){ c.felicidade=clamp(c.felicidade+4); var custo=Math.round(c.tesouro*0.03); c.tesouro-=custo; return "investimento social (-"+custo+")"; },
-  tecnologica:  function(c){ c.tecnologia+=3; var custo=Math.round(c.tesouro*0.08); c.tesouro-=custo; return "avanço tecnológico (-"+custo+")"; },
-  religiosa:    function(c){ c.estabilidade=clamp(c.estabilidade+2); c.felicidade=clamp(c.felicidade+1); return "medida religiosa aplicada"; },
-  administrativa:function(c){ c.estabilidade=clamp(c.estabilidade+3); c.legitimidade=clamp(c.legitimidade+2); return "reforma administrativa"; },
-  espionagem:   function(c){ return "operação de inteligência conduzida em sigilo"; },
-  comercial:    function(c){ c.comercio=clamp(c.comercio+5); var g=Math.round(c.receita*0.05); c.tesouro+=g; return "acordo comercial (+"+g+")"; },
-  infraestrutura:function(c){ c.infraestrutura=clamp(c.infraestrutura+4); var custo=Math.round(c.tesouro*0.06); c.tesouro-=custo; return "obra de infraestrutura (-"+custo+")"; },
-  diplomatica:  function(c){ return "esforço diplomático — ver aba Diplomacia"; }
+  economica:    function(c,fator){ var g=Math.round(c.receita*0.10*fator); c.tesouro+=g; c.estabilidade=clamp(c.estabilidade-1); bumpPop(c,Math.round(-3*fator),Math.round(-1*fator)); return (g>=0?"+":"")+g+" ao tesouro (arrecadação)"; },
+  militar:      function(c,fator){ var custo=Math.round(c.tesouro*0.05); c.tesouro-=custo; c.exercito.treinamento=clamp(c.exercito.treinamento+Math.round(5*fator)); return "treinamento "+(fator>0?"+"+Math.round(5*fator):"sem ganho")+" (-"+custo+" do tesouro)"; },
+  social:       function(c,fator){ var custo=Math.round(c.tesouro*0.03); c.tesouro-=custo; c.felicidade=clamp(c.felicidade+Math.round(4*fator)); return "felicidade "+(fator>0?"+"+Math.round(4*fator)+"%":"sem ganho")+" (-"+custo+")"; },
+  tecnologica:  function(c,fator){ var custo=Math.round(c.tesouro*0.08); c.tesouro-=custo; c.tecnologia+=Math.round(3*fator); return "tecnologia "+(fator>0?"+"+Math.round(3*fator):"sem avanço")+" (-"+custo+")"; },
+  religiosa:    function(c,fator){ c.estabilidade=clamp(c.estabilidade+Math.round(2*fator)); c.felicidade=clamp(c.felicidade+Math.round(1*fator)); return fator>0?"medida religiosa bem recebida":"medida religiosa não engajou o clero"; },
+  administrativa:function(c,fator){ c.estabilidade=clamp(c.estabilidade+Math.round(3*fator)); c.legitimidade=clamp(c.legitimidade+Math.round(2*fator)); return fator>0?"reforma administrativa aplicada":"reforma travou na burocracia"; },
+  espionagem:   function(c,fator){ return "operação de inteligência conduzida em sigilo"; },
+  comercial:    function(c,fator){ var g=Math.round(c.receita*0.05*fator); c.tesouro+=g; c.comercio=clamp(c.comercio+Math.round(5*fator)); return (g>=0?"+":"")+g+" (acordo comercial)"; },
+  infraestrutura:function(c,fator){ var custo=Math.round(c.tesouro*0.06); c.tesouro-=custo; c.infraestrutura=clamp(c.infraestrutura+Math.round(4*fator)); return "infraestrutura "+(fator>0?"+"+Math.round(4*fator)+"%":"obra atrasada")+" (-"+custo+")"; },
+  diplomatica:  function(c,fator){ return "esforço diplomático — ver aba Diplomacia"; }
 };
+/* fracasso ainda produz um resultado mínimo (o esforço não foi 100%
+   perdido), sucesso é o valor "cheio" da ordem, sucesso crítico dá bônus. */
+var FATOR_POR_GRAU = { "fracasso critico": -0.6, "fracasso": 0.15, "sucesso": 1, "sucesso critico": 1.6 };
 function clamp(v,min,max){ min=min===undefined?0:min; max=max===undefined?100:max; return Math.max(min,Math.min(max,Math.round(v))); }
+
+/* =========================================================
+   EFEITOS REAIS DE DIPLOMACIA — corrige a falha de auditoria
+   "diplomacia é predominantemente narrativa": aceitar uma proposta
+   agora muda o estado dos dois países de verdade (c.relacoes), não
+   só um texto no histórico. Guerra declarada não é algo que o outro
+   lado "aceita" — passa a existir assim que é declarada (RF-DIP-11).
+   ========================================================= */
+function aplicarEfeitoDiplomacia(campaignId, idA, idB, tipo){
+  return (async function(){
+    var a = await fsGet("country:"+campaignId+":"+idA);
+    var b = await fsGet("country:"+campaignId+":"+idB);
+    if(!a || !b) return;
+    a.relacoes = a.relacoes||{}; b.relacoes = b.relacoes||{};
+    var ts = Date.now();
+    if(tipo==="declaracao_guerra"){
+      a.relacoes[idB] = {tipo:tipo, estado:"guerra", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"guerra", desde:ts};
+      a.estabilidade = clamp(a.estabilidade-2); b.estabilidade = clamp(b.estabilidade-2);
+    } else if(tipo==="tratado_paz"){
+      a.relacoes[idB] = {tipo:tipo, estado:"paz", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"paz", desde:ts};
+    } else if(tipo==="alianca"){
+      a.relacoes[idB] = {tipo:tipo, estado:"aliado", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"aliado", desde:ts};
+      a.legitimidade = clamp(a.legitimidade+2); b.legitimidade = clamp(b.legitimidade+2);
+    } else if(tipo==="comercio"){
+      a.relacoes[idB] = {tipo:tipo, estado:"comercio", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"comercio", desde:ts};
+      a.comercio = clamp(a.comercio+8); b.comercio = clamp(b.comercio+8);
+    } else if(tipo==="sancao"){
+      a.relacoes[idB] = {tipo:tipo, estado:"sancionando", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"sancionado", desde:ts};
+      b.comercio = clamp(b.comercio-10); b.receita = Math.round(b.receita*0.95);
+    } else if(tipo==="tributo"){
+      a.relacoes[idB] = {tipo:tipo, estado:"recebe_tributo", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"paga_tributo", desde:ts};
+    } else if(tipo==="troca_territorio"){
+      a.relacoes[idB] = {tipo:tipo, estado:"acordo_territorial", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"acordo_territorial", desde:ts};
+    } else if(tipo==="ameaca"){
+      a.relacoes[idB] = {tipo:tipo, estado:"intimidou", desde:ts};
+      b.relacoes[idA] = {tipo:tipo, estado:"intimidado", desde:ts};
+      b.estabilidade = clamp(b.estabilidade-3);
+    } else { return; }
+    await fsPut("country:"+campaignId+":"+idA, a);
+    await fsPut("country:"+campaignId+":"+idB, b);
+    if(state.campaignId===campaignId){ await refreshCountriesIndex(); if(state.myCountryId) state.myCountry = state.countries[state.myCountryId]; }
+  })();
+}
+/* Efeitos recorrentes de relações ativas — roda todo mês, por país
+   (tributo transferido de fato, desgaste de guerra em andamento). */
+function aplicarRelacoesRecorrentes(c, todosPaises){
+  Object.keys(c.relacoes||{}).forEach(function(otherId){
+    var rel = c.relacoes[otherId]; var outro = todosPaises[otherId];
+    if(!outro) return;
+    if(rel.estado==="guerra"){ c.tesouro -= Math.round(c.despesas*0.08); c.felicidade = clamp(c.felicidade-1); }
+    if(rel.estado==="paga_tributo"){ var v = Math.round(c.receita*0.06); c.tesouro -= v; outro.tesouro += v; }
+    if(rel.estado==="comercio"){ c.tesouro += Math.round(c.receita*0.02); }
+  });
+}
+function labelRelacao(estado){
+  return {guerra:"⚔️ Guerra", paz:"🤝 Paz", aliado:"🛡️ Aliado", comercio:"💰 Parceiro comercial",
+    sancionando:"🚫 Sancionando", sancionado:"🚫 Sancionado", recebe_tributo:"👑 Recebe tributo",
+    paga_tributo:"💸 Paga tributo", acordo_territorial:"🗺️ Acordo territorial",
+    intimidou:"⚠️ Intimidou", intimidado:"⚠️ Intimidado"}[estado] || estado;
+}
 function bumpPop(c, satisfDelta, apoioDelta){
   (c.populacaoGrupos||[]).forEach(function(g){ g.satisfacao=clamp(g.satisfacao+satisfDelta); g.apoioGoverno=clamp(g.apoioGoverno+apoioDelta); g.propensaoRevolta=clamp(g.propensaoRevolta-satisfDelta,0,100); });
 }
@@ -1694,12 +2108,17 @@ function derivaDeFundo(c){
   c.tesouro += Math.round(c.receita - c.despesas);
   c.receita = Math.round(c.receita*(1+(c.comercio-50)/2000));
   c.estabilidade = clamp(c.estabilidade + (c.felicidade>60?1:-1));
+  // Impacto contínuo do tipo de governo (auditoria #29)
+  var gm = govMod(c.governo);
+  if(gm.estabilidadeMensal) c.estabilidade = clamp(c.estabilidade + gm.estabilidadeMensal);
+  if(gm.felicidadeMensal) c.felicidade = clamp(c.felicidade + gm.felicidadeMensal);
 }
 
 async function resolverTurno(campaignId, turnoAtual){
   var lockKey = "turnlock:"+campaignId;
   var got = await acquireLock(lockKey);
   if(!got){ toast("Já há uma resolução em andamento."); return; }
+  var heartbeat = startLockHeartbeat(lockKey);
   try{
     var turnoDoc = (await fsGet("turn:"+campaignId+":"+turnoAtual)) || {status:"ABERTO"};
     if(turnoDoc.status==="RESOLVIDO" || turnoDoc.status==="PUBLICADO"){ return; } // idempotência (RF-035)
@@ -1726,16 +2145,36 @@ async function resolverTurno(campaignId, turnoAtual){
       prop.respostaTexto = decisao.texto;
       prop.respondidaEm = Date.now();
       houveRespostaDiplomatica = true;
+      if(prop.status==="aceito"){ await aplicarEfeitoDiplomacia(campaignId, prop.fromCountry, prop.toCountry, prop.tipo); }
       var origem = state.countries[prop.fromCountry];
       await appendEvent(campaignId, proximaData, (prop.status==="aceito"?"Aceita":"Recusada")+" por "+alvo.nome+": proposta de "+prop.tipo+" enviada por "+(origem?origem.nome:"?")+". \""+decisao.texto+"\"", "diplomacia");
     }
-    if(houveRespostaDiplomatica) await fsPut("diplomacy:"+campaignId, propostas);
+    if(houveRespostaDiplomatica){
+      await fsPut("diplomacy:"+campaignId, propostas);
+      // Recarrega os países: aplicarEfeitoDiplomacia já gravou relações
+      // novas no Firestore; sem isso, o loop abaixo sobrescreveria essas
+      // relações com a cópia em memória desatualizada.
+      await refreshCountriesIndexFor(campaignId);
+    }
+
+    // Carrega as fichas de chefe (atributos/perícias) de cada país humano
+    // desta campanha, para que o D20 use os atributos certos por país
+    // (antes, a resolução usava um valor fixo "14" para todo mundo).
+    var liderPorPais = {};
+    var emailPorPais = {};
+    Object.keys(campaign.countryOfMember||{}).forEach(function(email){ emailPorPais[campaign.countryOfMember[email]] = email; });
+    for(var li=0; li<countryIds.length; li++){
+      var cidLi = countryIds[li];
+      var emailLi = emailPorPais[cidLi];
+      if(emailLi){ liderPorPais[cidLi] = await fsGet("leader:"+campaignId+":"+emailLi); }
+    }
 
     for(var i=0;i<countryIds.length;i++){
       var cid = countryIds[i];
       var c = state.countries[cid];
       var tesouroAntes = c.tesouro, estabAntes = c.estabilidade, felicAntes = c.felicidade;
       derivaDeFundo(c);
+      aplicarRelacoesRecorrentes(c, state.countries);
       var ordersKey = "orders:"+campaignId+":"+cid+":"+turnoAtual;
       var ordensBrutas = (await fsGet(ordersKey)) || [];
       // RF-007/RF-008: país IA emite suas próprias ordens internas todo
@@ -1750,13 +2189,20 @@ async function resolverTurno(campaignId, turnoAtual){
       // ---- Ordens normais: cada uma aplica efeito e gera seu próprio
       //      item de evento — visível separadamente no mês seguinte ----
       var itensPublicos = [];
+      var chefeExecutor = liderPorPais[cid] || null; // ficha do chefe (jogadores) ou null (IA)
       ordensNormais.forEach(function(o){
-        var teste = d20Test(14, 12); // CD base 12; atributo 14 como aproximação de "governo competente"
+        var cfg = ORDENS_CONFIG[o.tipo] || ORDENS_CONFIG.administrativa;
+        var mod = modificadorOrdem(chefeExecutor, c, o.tipo);
+        var teste = d20TestMod(mod, cfg.cd);
         var fn = EFEITOS_ORDEM[o.tipo] || EFEITOS_ORDEM.administrativa;
-        var linha = fn(c);
-        if(teste.grau==="fracasso critico"){ c.estabilidade=clamp(c.estabilidade-4); linha += " — execução falhou gravemente (1 natural)"; }
-        else if(teste.grau==="sucesso critico"){ c.estabilidade=clamp(c.estabilidade+2); linha += " — execução exemplar (20 natural)"; }
-        if(!o.secreta) itensPublicos.push({tipo:o.tipo, texto:o.texto, resultado:linha});
+        var fator = FATOR_POR_GRAU[teste.grau];
+        var antesSnapshot = {tesouro:Math.round(c.tesouro), estabilidade:c.estabilidade};
+        var linha = fn(c, fator);
+        var rotuloGrau = {"fracasso critico":"desastre (1 natural)","fracasso":"fracasso","sucesso":"sucesso","sucesso critico":"sucesso crítico (20 natural)"}[teste.grau];
+        if(teste.grau==="fracasso critico"){ c.estabilidade=clamp(c.estabilidade-4); }
+        var deltaTesouroLinha = Math.round(c.tesouro)-antesSnapshot.tesouro;
+        linha += " — d20 "+teste.roll+(mod>=0?"+":"")+mod+"="+teste.total+" vs CD "+cfg.cd+" → "+rotuloGrau;
+        if(!o.secreta) itensPublicos.push({tipo:o.tipo, texto:o.texto, resultado:linha, deltaTesouro:deltaTesouroLinha});
       });
 
       // ---- Relatórios de Inteligência (privados, por operação) ----
@@ -1809,6 +2255,7 @@ async function resolverTurno(campaignId, turnoAtual){
     await fsPut("turn:"+campaignId+":"+proximaData, {status:"ABERTO", createdAt:Date.now()});
     countryIds.forEach(function(cid){ fsPut("orders:"+campaignId+":"+cid+":"+proximaData, []); });
   } finally {
+    clearInterval(heartbeat);
     await releaseLock(lockKey);
   }
 }
